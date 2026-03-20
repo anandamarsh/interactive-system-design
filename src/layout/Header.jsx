@@ -7,7 +7,7 @@ export default function Header({ onMenuClick }) {
   const currentTopic = topicId ? topics.find(t => t.id === topicId) : null
 
   return (
-    <header className="md:hidden sticky top-0 z-30 bg-white border-b border-slate-200 px-4 py-3 flex items-center gap-3 shadow-sm">
+    <header className="sticky top-0 z-30 bg-white border-b border-slate-200 px-4 py-3 flex items-center gap-3 shadow-sm">
       <button
         onClick={onMenuClick}
         className="p-2 -ml-2 rounded-lg hover:bg-slate-100 transition-colors flex-shrink-0"
