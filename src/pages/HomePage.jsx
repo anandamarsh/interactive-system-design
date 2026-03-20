@@ -17,7 +17,7 @@ export default function HomePage() {
 
         <h1 className="text-3xl sm:text-5xl font-bold text-slate-900 mb-5 leading-tight">
           Learn system design<br />
-          <span className="text-blue-600">*** TEST CHANGE ***</span>
+          <span className="text-blue-600">by doing, not reading</span>
         </h1>
 
         <p className="text-base sm:text-lg text-slate-500 max-w-2xl leading-relaxed">
