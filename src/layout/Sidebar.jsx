@@ -20,7 +20,7 @@ export default function Sidebar({ isOpen, onClose }) {
       {/* Mobile overlay */}
       {isOpen && (
         <div
-          className="fixed inset-0 bg-black/50 z-40 md:hidden"
+          className="fixed inset-0 bg-black/50 z-40"
           onClick={onClose}
         />
       )}
@@ -30,8 +30,7 @@ export default function Sidebar({ isOpen, onClose }) {
         fixed top-0 left-0 h-full w-72 bg-slate-900 text-white z-50
         transform transition-transform duration-300 ease-in-out
         flex flex-col
-        md:relative md:translate-x-0 md:z-auto md:flex-shrink-0
-        ${isOpen ? 'translate-x-0' : '-translate-x-full'}
+${isOpen ? 'translate-x-0' : '-translate-x-full'}
       `}>
         {/* Brand */}
         <div className="p-5 border-b border-slate-800">
