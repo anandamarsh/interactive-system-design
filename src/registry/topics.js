@@ -11,8 +11,9 @@ import RpcDemo from '../topics/rpc'
 export const topicList = [
   {
     id: 'rpc',
-    title: 'Remote Procedure Calls (RPC)',
-    shortTitle: 'RPC',
+    title: 'RPC (Remote Procedure Call)',
+    shortTitle: 'RPC (Remote Procedure Call)',
+    chapter: 'Core Concepts',
     category: 'Networking',
     tags: ['RPC', 'Marshalling', 'Serialization'],
     difficulty: 'Beginner',
@@ -106,6 +107,12 @@ export const topicList = [
 
 // Lookup map for O(1) access
 export const topics = topicList
+
+export const chapters = {
+  'Core Concepts': {
+    topicIds: ['rpc'],
+  },
+}
 
 // Sidebar category structure
 export const categories = {
