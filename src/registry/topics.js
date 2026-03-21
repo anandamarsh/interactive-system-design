@@ -11,8 +11,8 @@ import RpcDemo from '../topics/rpc'
 export const topicList = [
   {
     id: 'rpc',
-    title: 'Remote Procedure Calls (RPC)',
-    shortTitle: 'RPC',
+    title: 'RPC (Remote Procedure Call)',
+    shortTitle: 'RPC (Remote Procedure Call)',
     category: 'Networking',
     tags: ['RPC', 'Marshalling', 'Serialization'],
     difficulty: 'Beginner',

@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
+import rpcText from './rpcText.json'
+import { useAppTheme } from '../../theme/AppThemeContext'
 
 const COMMANDS = {
   ls: ['src', 'public', 'package.json', 'README.md', 'vite.config.js'],
@@ -13,39 +15,102 @@ const STEP_MS = 1100
 const REMOTE_PROC_PAUSE_MS = 2000
 const REMOTE_PROC_RECEIVE_BEEP_MS = 220
 const BOX_CHROME_ENABLED = 'border-cyan-200/40'
-const LAYER_INFO = {
-  Client: {
-    title: 'Client',
-    body: 'The client code calls a generated gRPC method as if it were local. It sends a RunCommandRequest and eventually receives a RunCommandResponse.',
-    more: 'In gRPC, the client usually works with a generated strongly typed API rather than manually building HTTP requests. For a unary call like this one, the client prepares a single protobuf request, hands it to the client stub, and then waits for one protobuf response. Deadlines, metadata, retries, and authentication concerns are typically attached at this layer or just below it, even though the calling code still looks like a normal method invocation.',
+const LAYER_INFO = rpcText.layers
+const UI_TEXT = rpcText.ui
+const GUIDE_TEXT = rpcText.guide
+const CODE_TEXT = rpcText.code
+const BOX_TITLES = {
+  client: LAYER_INFO.Client.title,
+  clientStub: LAYER_INFO['Client Stub'].title,
+  rpcRuntime: LAYER_INFO['RPC Runtime'].title,
+  serverStub: LAYER_INFO['Server Stub'].title,
+  server: LAYER_INFO.Server.title,
+  protoDefinition: LAYER_INFO['Proto Definition'].title,
+}
+const THEMES = {
+  dark: {
+    shellBg: '#0a1320',
+    shellBorder: 'rgba(103, 232, 249, 0.1)',
+    topBarBg: 'rgba(6, 17, 29, 0.82)',
+    topBarBorder: 'rgba(165, 243, 252, 0.14)',
+    panelBg: '#040b17',
+    panelMutedBg: '#050814',
+    panelBorder: 'rgba(207, 250, 254, 0.4)',
+    panelMutedBorder: 'rgba(30, 41, 59, 0.9)',
+    panelText: '#f8fafc',
+    panelMutedText: '#64748b',
+    footerBorder: 'rgba(207, 250, 254, 0.4)',
+    footerMutedBorder: 'rgba(51, 65, 85, 0.75)',
+    accent: '#67e8f9',
+    accentStrong: '#22d3ee',
+    accentSoftBg: 'rgba(103, 232, 249, 0.1)',
+    accentShadow: '0 0 12px rgba(34, 211, 238, 0.8)',
+    text: '#e2e8f0',
+    textStrong: '#f8fafc',
+    textMuted: '#cbd5e1',
+    textFaint: '#94a3b8',
+    textHighlight: '#ef4444',
+    inputBg: 'rgba(0, 0, 0, 0.35)',
+    inputBorder: 'rgba(165, 243, 252, 0.35)',
+    placeholder: '#64748b',
+    popupBg: '#08111f',
+    modalBg: '#07111e',
+    overlay: 'rgba(2, 6, 23, 0.7)',
+    protoBg: '#06101d',
+    command: '#e0f2fe',
+    output: '#86efac',
+    key: '#7dd3fc',
+    string: '#fcd34d',
+    boolean: '#f0abfc',
+    punct: '#94a3b8',
+    dim: '#cbd5e1',
+    numberEnabled: '#bae6fd',
+    numberDisabled: '#334155',
+    packetActive: '#d946ef',
+    packetIdle: '#67e8f9',
   },
-  'Client Stub': {
-    title: 'Client Stub',
-    body: 'The generated client stub turns the method call into protobuf request and response messages. It hides serialization details from the caller.',
-    more: 'This layer is where the method signature from the .proto file becomes usable application code. The stub knows the fully qualified RPC path, the request and response protobuf types, and how to marshal and unmarshal them. In many gRPC implementations this is also where interceptors hook in for logging, tracing, auth, or retries before the call reaches the transport runtime.',
-  },
-  'RPC Runtime': {
-    title: 'RPC Runtime',
-    body: 'The gRPC runtime maps protobuf messages onto HTTP/2. It sends HEADERS, DATA, and TRAILERS and reconstructs them on the receiving side.',
-    more: 'This is the transport machinery that makes gRPC distinct from a generic RPC sketch. A unary request is carried as HTTP/2 headers plus a length-prefixed protobuf message in the DATA frame, and the response comes back with its own DATA plus TRAILERS such as grpc-status. Flow control, stream management, metadata propagation, compression flags, and status handling all live conceptually in this layer.',
-  },
-  'Server Stub': {
-    title: 'Server Stub',
-    body: 'The generated server handler decodes the incoming protobuf request, invokes the service method, and encodes the protobuf response.',
-    more: 'On the server side, generated glue code bridges transport and business logic. It accepts the decoded request message from the runtime, maps it to the right RPC handler, and then takes the service result and serializes it back into the expected protobuf response type. Validation, interceptors, auth checks, and request context propagation often pass through here before the actual service implementation runs.',
-  },
-  Server: {
-    title: 'Server',
-    body: 'This is the real server-side implementation of the gRPC service. Business logic runs here and produces the response message.',
-    more: 'This layer owns the actual application behavior. By the time execution reaches here, transport details such as HTTP/2 framing and protobuf decoding have already been handled, so the service can focus on using request fields and returning a typed response. In a real system, this is where domain logic, database access, downstream service calls, and error mapping to gRPC status codes would typically happen.',
-  },
-  'Proto Definition': {
-    title: 'Proto Definition',
-    body: 'This is the .proto contract. It defines the gRPC service method and the protobuf request and response message shapes shared by client and server.',
-    more: 'The .proto file is the shared source of truth for both sides of a gRPC system. From this contract, tooling generates stubs, handlers, and message classes in different languages, which is why client and server can agree on method names, field numbers, and serialization formats. Field numbering matters for wire compatibility, and this contract is what lets teams evolve APIs safely while preserving backward compatibility.',
+  light: {
+    shellBg: '#ffffff',
+    shellBorder: 'rgba(37, 99, 235, 0.16)',
+    topBarBg: '#ffffff',
+    topBarBorder: 'rgba(37, 99, 235, 0.14)',
+    panelBg: '#ffffff',
+    panelMutedBg: '#edf3f9',
+    panelBorder: 'rgba(37, 99, 235, 0.28)',
+    panelMutedBorder: 'rgba(148, 163, 184, 0.45)',
+    panelText: '#0f172a',
+    panelMutedText: '#64748b',
+    footerBorder: 'rgba(37, 99, 235, 0.28)',
+    footerMutedBorder: 'rgba(148, 163, 184, 0.4)',
+    accent: '#0284c7',
+    accentStrong: '#0369a1',
+    accentSoftBg: 'rgba(2, 132, 199, 0.08)',
+    accentShadow: '0 0 10px rgba(2, 132, 199, 0.28)',
+    text: '#334155',
+    textStrong: '#0f172a',
+    textMuted: '#475569',
+    textFaint: '#64748b',
+    textHighlight: '#dc2626',
+    inputBg: 'rgba(248, 250, 252, 0.96)',
+    inputBorder: 'rgba(2, 132, 199, 0.3)',
+    placeholder: '#94a3b8',
+    popupBg: '#ffffff',
+    modalBg: '#f8fbff',
+    overlay: 'rgba(226, 232, 240, 0.78)',
+    protoBg: '#ffffff',
+    command: '#075985',
+    output: '#15803d',
+    key: '#0369a1',
+    string: '#b45309',
+    boolean: '#a21caf',
+    punct: '#64748b',
+    dim: '#475569',
+    numberEnabled: '#0ea5e9',
+    numberDisabled: '#94a3b8',
+    packetActive: '#db2777',
+    packetIdle: '#0ea5e9',
   },
 }
-
 function emptyDualBox(label) {
   return {
     left: [],
@@ -58,16 +123,16 @@ function emptyDualBox(label) {
 const INITIAL_BOXES = {
   1: {
     main: [{ kind: 'command', value: '' }],
-    footerLeft: 'Client',
+    footerLeft: BOX_TITLES.client,
     status: 'idle',
   },
-  2: emptyDualBox('Client Stub'),
-  3: emptyDualBox('RPC Runtime'),
-  4: emptyDualBox('RPC Runtime'),
-  5: emptyDualBox('Server Stub'),
+  2: emptyDualBox(BOX_TITLES.clientStub),
+  3: emptyDualBox(BOX_TITLES.rpcRuntime),
+  4: emptyDualBox(BOX_TITLES.rpcRuntime),
+  5: emptyDualBox(BOX_TITLES.serverStub),
   6: {
     main: [],
-    footerLeft: 'Server',
+    footerLeft: BOX_TITLES.server,
     status: 'idle',
   },
 }
@@ -80,7 +145,7 @@ const STEP_ORDER = [
       ...boxStatusUpdates([1], 'waiting'),
       1: {
         main: [{ kind: 'command', value: cmd }],
-        footerLeft: 'Client',
+        footerLeft: BOX_TITLES.client,
       },
     }),
   },
@@ -93,7 +158,7 @@ const STEP_ORDER = [
       2: {
         left: buildClientStubRequest(cmd),
         right: [],
-        footerLeft: 'Client Stub',
+        footerLeft: BOX_TITLES.clientStub,
       },
     }),
   },
@@ -106,7 +171,7 @@ const STEP_ORDER = [
       3: {
         left: buildRuntimeRequest(cmd),
         right: [],
-        footerLeft: 'RPC Runtime',
+        footerLeft: BOX_TITLES.rpcRuntime,
       },
     }),
   },
@@ -126,7 +191,7 @@ const STEP_ORDER = [
       4: {
         left: buildRuntimeIngress(cmd),
         right: [],
-        footerLeft: 'RPC Runtime',
+        footerLeft: BOX_TITLES.rpcRuntime,
       },
     }),
   },
@@ -139,7 +204,7 @@ const STEP_ORDER = [
       5: {
         left: buildServerStubRequest(cmd),
         right: [],
-        footerLeft: 'Server Stub',
+        footerLeft: BOX_TITLES.serverStub,
       },
     }),
   },
@@ -151,7 +216,7 @@ const STEP_ORDER = [
       ...boxStatusUpdates([1, 2, 3, 4, 5, 6], 'waiting'),
       6: {
         main: buildServiceImplementation(cmd),
-        footerLeft: 'Server',
+        footerLeft: BOX_TITLES.server,
       },
     }),
     pauseMs: REMOTE_PROC_PAUSE_MS,
@@ -166,7 +231,7 @@ const STEP_ORDER = [
       5: {
         left: buildServerStubRequest(cmd),
         right: buildServerStubResponse(cmd),
-        footerLeft: 'Server Stub',
+        footerLeft: BOX_TITLES.serverStub,
       },
     }),
   },
@@ -180,7 +245,7 @@ const STEP_ORDER = [
       4: {
         left: buildRuntimeIngress(cmd),
         right: buildRuntimeResponse(cmd),
-        footerLeft: 'RPC Runtime',
+        footerLeft: BOX_TITLES.rpcRuntime,
       },
     }),
   },
@@ -202,7 +267,7 @@ const STEP_ORDER = [
       3: {
         left: buildRuntimeRequest(cmd),
         right: buildRuntimeEgress(cmd),
-        footerLeft: 'RPC Runtime',
+        footerLeft: BOX_TITLES.rpcRuntime,
       },
     }),
   },
@@ -216,7 +281,7 @@ const STEP_ORDER = [
       2: {
         left: buildClientStubRequest(cmd),
         right: buildClientStubResponse(cmd),
-        footerLeft: 'Client Stub',
+        footerLeft: BOX_TITLES.clientStub,
       },
     }),
   },
@@ -235,14 +300,15 @@ const STEP_ORDER = [
             ...(index === COMMANDS[cmd].length - 1 ? [] : [{ kind: 'newline' }]),
           ]),
         ],
-        footerLeft: 'Local Machine',
+        footerLeft: BOX_TITLES.client,
       },
     }),
   },
 ]
 
 export default function RpcDemo() {
-  const [command, setCommand] = useState('pwd')
+  const [command, setCommand] = useState('')
+  const { themeName, setThemeName } = useAppTheme()
   const [boxes, setBoxes] = useState(INITIAL_BOXES)
   const [activeTarget, setActiveTarget] = useState(null)
   const [isRunning, setIsRunning] = useState(false)
@@ -250,12 +316,15 @@ export default function RpcDemo() {
   const [infoLayer, setInfoLayer] = useState(null)
   const [infoAnchor, setInfoAnchor] = useState(null)
   const [expandedLayer, setExpandedLayer] = useState(null)
+  const [isGuideOpen, setIsGuideOpen] = useState(false)
+  const [guideWidth, setGuideWidth] = useState(460)
   const [revealedBoxes, setRevealedBoxes] = useState([1])
   const [revealedArrows, setRevealedArrows] = useState([])
   const [pan, setPan] = useState({ x: 0, y: 0 })
   const [isPanning, setIsPanning] = useState(false)
   const timersRef = useRef([])
   const panRef = useRef({ startX: 0, startY: 0, originX: 0, originY: 0 })
+  const guideResizeRef = useRef(false)
   const beepAudioRef = useRef(null)
   const networkAudioRef = useRef(null)
   const typingAudioRef = useRef(null)
@@ -290,6 +359,7 @@ export default function RpcDemo() {
         setInfoLayer(null)
         setInfoAnchor(null)
         setExpandedLayer(null)
+        setIsGuideOpen(false)
       }
     }
 
@@ -309,6 +379,25 @@ export default function RpcDemo() {
     return () => window.removeEventListener('pointerdown', handlePointerDown)
   }, [])
 
+  useEffect(() => {
+    function handlePointerMove(event) {
+      if (!guideResizeRef.current) return
+      const nextWidth = Math.min(760, Math.max(380, window.innerWidth - event.clientX))
+      setGuideWidth(nextWidth)
+    }
+
+    function handlePointerUp() {
+      guideResizeRef.current = false
+    }
+
+    window.addEventListener('pointermove', handlePointerMove)
+    window.addEventListener('pointerup', handlePointerUp)
+    return () => {
+      window.removeEventListener('pointermove', handlePointerMove)
+      window.removeEventListener('pointerup', handlePointerUp)
+    }
+  }, [])
+
   function handleTypingEnded() {
     setIsRemoteProcessing(false)
   }
@@ -324,7 +413,7 @@ export default function RpcDemo() {
       ...INITIAL_BOXES,
       1: {
         main: [{ kind: 'command', value: trimmed }],
-        footerLeft: 'Client',
+        footerLeft: BOX_TITLES.client,
         status: 'waiting',
       },
     })
@@ -374,6 +463,7 @@ export default function RpcDemo() {
   }
 
   const zoom = DEFAULT_ZOOM
+  const theme = THEMES[themeName]
   const networkForwardActive = activeTarget === 'network-forward'
   const networkReturnActive = activeTarget === 'network-return'
 
@@ -401,19 +491,42 @@ export default function RpcDemo() {
   }
 
   return (
-    <div className="rpc-stage-shell h-full w-full overflow-hidden border border-cyan-400/10">
-      <div className="h-full overflow-hidden">
-        <div
-          className={`flex min-h-full items-center justify-center ${isPanning ? 'cursor-grabbing' : 'cursor-grab'}`}
-          onPointerDown={handlePanStart}
-          onPointerMove={handlePanMove}
-          onPointerUp={handlePanEnd}
-          onPointerLeave={handlePanEnd}
-        >
-          <div
-            className="grid h-[860px] w-[1500px] origin-center grid-cols-[1fr_260px_1fr] grid-rows-[1fr_1fr_1fr_auto] gap-x-8 gap-y-5 transition-transform duration-300 will-change-transform"
-            style={{ transform: `translate3d(${Math.round(pan.x)}px, ${Math.round(pan.y)}px, 0) scale(${zoom})` }}
+    <div className="rpc-stage-shell relative flex h-full w-full overflow-hidden border" style={{ backgroundColor: theme.shellBg, borderColor: theme.shellBorder }}>
+      {isGuideOpen && (
+        <GuidePanel
+          theme={theme}
+          width={guideWidth}
+          onResizeStart={() => {
+            guideResizeRef.current = true
+          }}
+          onClose={() => setIsGuideOpen(false)}
+        />
+      )}
+
+      <div className="relative min-w-0 flex-1 overflow-hidden">
+        {!isGuideOpen && (
+          <button
+            type="button"
+            onClick={() => setIsGuideOpen(true)}
+            className="absolute left-4 top-4 z-30 flex h-10 w-10 items-center justify-center rounded-full transition-colors"
+            style={{ color: theme.accent, backgroundColor: 'transparent' }}
+            aria-label={UI_TEXT.openGuide}
           >
+            <InfoIcon />
+          </button>
+        )}
+        <div className="h-full overflow-hidden" style={{ backgroundColor: theme.shellBg }}>
+          <div
+            className={`flex min-h-full items-center justify-center ${isPanning ? 'cursor-grabbing' : 'cursor-grab'}`}
+            onPointerDown={handlePanStart}
+            onPointerMove={handlePanMove}
+            onPointerUp={handlePanEnd}
+            onPointerLeave={handlePanEnd}
+          >
+            <div
+              className="grid h-[860px] w-[1500px] origin-center grid-cols-[1fr_260px_1fr] grid-rows-[1fr_1fr_1fr_auto] gap-x-8 gap-y-5 transition-transform duration-300 will-change-transform"
+              style={{ transform: `translate3d(${Math.round(pan.x)}px, ${Math.round(pan.y)}px, 0) scale(${zoom})` }}
+            >
             <StageBox
               number={1}
               row="1"
@@ -429,6 +542,7 @@ export default function RpcDemo() {
               onInputChange={setCommand}
               onSubmit={handleRun}
               disabled={isRunning}
+              theme={theme}
               onInfoOpen={(layerKey, anchor) => {
                 setInfoLayer(layerKey)
                 setInfoAnchor(anchor)
@@ -447,6 +561,7 @@ export default function RpcDemo() {
               footerLeft={boxes[2].footerLeft}
               status={boxes[2].status}
               infoKey="Client Stub"
+              theme={theme}
               onInfoOpen={(layerKey, anchor) => {
                 setInfoLayer(layerKey)
                 setInfoAnchor(anchor)
@@ -465,6 +580,7 @@ export default function RpcDemo() {
               footerLeft={boxes[3].footerLeft}
               status={boxes[3].status}
               infoKey="RPC Runtime"
+              theme={theme}
               onInfoOpen={(layerKey, anchor) => {
                 setInfoLayer(layerKey)
                 setInfoAnchor(anchor)
@@ -483,6 +599,7 @@ export default function RpcDemo() {
               status={boxes[6].status}
               infoKey="Server"
               showProcessingIndicator={isRemoteProcessing}
+              theme={theme}
               onInfoOpen={(layerKey, anchor) => {
                 setInfoLayer(layerKey)
                 setInfoAnchor(anchor)
@@ -501,6 +618,7 @@ export default function RpcDemo() {
               footerLeft={boxes[5].footerLeft}
               status={boxes[5].status}
               infoKey="Server Stub"
+              theme={theme}
               onInfoOpen={(layerKey, anchor) => {
                 setInfoLayer(layerKey)
                 setInfoAnchor(anchor)
@@ -519,6 +637,7 @@ export default function RpcDemo() {
               footerLeft={boxes[4].footerLeft}
               status={boxes[4].status}
               infoKey="RPC Runtime"
+              theme={theme}
               onInfoOpen={(layerKey, anchor) => {
                 setInfoLayer(layerKey)
                 setInfoAnchor(anchor)
@@ -526,14 +645,14 @@ export default function RpcDemo() {
               onExpandOpen={() => setExpandedLayer(buildExpandedLayer(boxes, 4, 'RPC Runtime'))}
             />
 
-            <VerticalArrow id="arrow_1" direction="down" row="1" col="1" lane="left" visible={revealedArrows.includes('1-2')} active={activeTarget === 2} start="34%" end="7px" height="58px" />
-            <VerticalArrow id="arrow_2" direction="down" row="2" col="1" lane="left" visible={revealedArrows.includes('2-3')} active={activeTarget === 3} start="34%" end="7px" height="58px" />
-            <VerticalArrow id="arrow_3" direction="up" row="1" col="1" lane="right" visible={revealedArrows.includes('2-1')} active={activeTarget === 1} start="66%" end="7px" height="58px" />
-            <VerticalArrow id="arrow_4" direction="up" row="2" col="3" lane="left" visible={revealedArrows.includes('4-5')} active={activeTarget === 5} start="34%" end="7px" height="58px" />
-            <VerticalArrow id="arrow_5" direction="up" row="1" col="3" lane="left" visible={revealedArrows.includes('5-6')} active={activeTarget === 6} start="34%" end="7px" height="58px" />
-            <VerticalArrow id="arrow_6" direction="down" row="1" col="3" lane="right" visible={revealedArrows.includes('6-5')} active={activeTarget === 5} start="66%" end="7px" height="58px" />
-            <VerticalArrow id="arrow_7" direction="down" row="2" col="3" lane="right" visible={revealedArrows.includes('5-4')} active={activeTarget === 4} start="66%" end="7px" height="58px" />
-            <VerticalArrow id="arrow_8" direction="up" row="2" col="1" lane="right" visible={revealedArrows.includes('3-2')} active={activeTarget === 2} start="66%" end="7px" height="58px" />
+            <VerticalArrow id="arrow_1" direction="down" row="1" col="1" lane="left" visible={revealedArrows.includes('1-2')} active={activeTarget === 2} start="34%" end="7px" height="58px" theme={theme} />
+            <VerticalArrow id="arrow_2" direction="down" row="2" col="1" lane="left" visible={revealedArrows.includes('2-3')} active={activeTarget === 3} start="34%" end="7px" height="58px" theme={theme} />
+            <VerticalArrow id="arrow_3" direction="up" row="1" col="1" lane="right" visible={revealedArrows.includes('2-1')} active={activeTarget === 1} start="66%" end="7px" height="58px" theme={theme} />
+            <VerticalArrow id="arrow_4" direction="up" row="2" col="3" lane="left" visible={revealedArrows.includes('4-5')} active={activeTarget === 5} start="34%" end="7px" height="58px" theme={theme} />
+            <VerticalArrow id="arrow_5" direction="up" row="1" col="3" lane="left" visible={revealedArrows.includes('5-6')} active={activeTarget === 6} start="34%" end="7px" height="58px" theme={theme} />
+            <VerticalArrow id="arrow_6" direction="down" row="1" col="3" lane="right" visible={revealedArrows.includes('6-5')} active={activeTarget === 5} start="66%" end="7px" height="58px" theme={theme} />
+            <VerticalArrow id="arrow_7" direction="down" row="2" col="3" lane="right" visible={revealedArrows.includes('5-4')} active={activeTarget === 4} start="66%" end="7px" height="58px" theme={theme} />
+            <VerticalArrow id="arrow_8" direction="up" row="2" col="1" lane="right" visible={revealedArrows.includes('3-2')} active={activeTarget === 2} start="66%" end="7px" height="58px" theme={theme} />
 
             <NetworkBridge
               row="3"
@@ -542,20 +661,23 @@ export default function RpcDemo() {
               showReturn={revealedArrows.includes('4-3')}
               forwardActive={networkForwardActive}
               returnActive={networkReturnActive}
+              theme={theme}
             />
 
-            <SideLabel row="4" col="1" text="Local" />
+            <SideLabel row="4" col="1" text={UI_TEXT.local} theme={theme} />
             <ProtoPanel
               row="3"
               col="2"
               visible={revealedArrows.includes('3-4') || revealedArrows.includes('4-3')}
+              theme={theme}
               onInfoOpen={(layerKey, anchor) => {
                 setInfoLayer(layerKey)
                 setInfoAnchor(anchor)
               }}
               onExpandOpen={() => setExpandedLayer(buildProtoExpandedLayer())}
             />
-            <SideLabel row="4" col="3" text="Remote" />
+            <SideLabel row="4" col="3" text={UI_TEXT.remote} theme={theme} />
+            </div>
           </div>
         </div>
       </div>
@@ -564,6 +686,7 @@ export default function RpcDemo() {
         <LayerInfoPopup
           layerKey={infoLayer}
           anchor={infoAnchor}
+          theme={theme}
           onClose={() => {
             setInfoLayer(null)
             setInfoAnchor(null)
@@ -571,7 +694,7 @@ export default function RpcDemo() {
         />
       )}
       {expandedLayer && (
-        <LayerExpandModal layer={expandedLayer} onClose={() => setExpandedLayer(null)} />
+        <LayerExpandModal layer={expandedLayer} theme={theme} onClose={() => setExpandedLayer(null)} />
       )}
     </div>
   )
@@ -593,17 +716,22 @@ function StageBox({
   disabled,
   showProcessingIndicator = false,
   infoKey,
+  theme,
   onInfoOpen,
   onExpandOpen,
 }) {
   return (
     <section
       className={stageClass(enabled, active)}
-      style={{ gridRow: row, gridColumn: col }}
+      style={{
+        gridRow: row,
+        gridColumn: col,
+        ...panelStyle(theme, enabled, active),
+      }}
     >
-      <span className={`absolute -left-7 top-3 text-3xl font-semibold ${enabled ? 'text-cyan-200' : 'text-slate-700'}`}>{number}.</span>
+      <span className="absolute -left-7 top-3 text-3xl font-semibold" style={{ color: enabled ? theme.numberEnabled : theme.numberDisabled }}>{number}.</span>
       {showProcessingIndicator && (
-        <span className="pointer-events-none absolute right-4 top-4 z-10 text-cyan-300 animate-[spin_1.2s_linear_infinite]">
+        <span className="pointer-events-none absolute right-4 top-4 z-10 animate-[spin_1.2s_linear_infinite]" style={{ color: theme.accent }}>
           <GearIcon />
         </span>
       )}
@@ -611,39 +739,119 @@ function StageBox({
         {isInput ? (
           <div className="flex h-full flex-col justify-between">
             <div className="min-h-0 overflow-hidden font-mono text-[clamp(0.95rem,1.18vw,1.08rem)] leading-6">
-              <TokenRenderer tokens={mainTokens} />
+              <TokenRenderer tokens={mainTokens} theme={theme} />
             </div>
 
             <form onSubmit={onSubmit} className="mt-4">
-              <div className="flex items-center gap-3 border border-cyan-300/35 bg-black/35 px-3 py-2">
-                <span className="font-mono text-xl text-cyan-300">&gt;</span>
+              <div className="flex items-center gap-3">
+                <div className="flex w-full items-center gap-3 px-3 py-2" style={{ border: `1px solid ${theme.inputBorder}`, backgroundColor: theme.inputBg }}>
+                <span className="font-mono text-xl" style={{ color: theme.accent }}>$</span>
                 <input
                   value={inputValue}
                   onChange={(event) => onInputChange(event.target.value)}
                   disabled={disabled}
-                  placeholder="ls | pwd | whoami | date | uname -a"
+                  placeholder={UI_TEXT.placeholder}
                   spellCheck="false"
-                  className="w-full bg-transparent font-mono text-[clamp(0.95rem,1.18vw,1.08rem)] text-cyan-50 outline-none placeholder:text-slate-500"
+                  className="w-full bg-transparent font-mono text-[clamp(0.95rem,1.18vw,1.08rem)] outline-none"
+                  style={{ color: theme.textStrong, caretColor: theme.accent }}
                 />
                 <button
                   type="submit"
                   disabled={disabled || !COMMANDS[inputValue.trim()]}
-                  className="h-9 w-9 border border-cyan-300/60 text-lg text-cyan-100 disabled:opacity-40"
+                  className="h-9 w-9 text-lg disabled:opacity-40"
+                  style={{ color: theme.textStrong }}
                 >
                   ▶
                 </button>
+                </div>
               </div>
             </form>
           </div>
         ) : (
           <div className={`h-full overflow-hidden font-mono text-[clamp(0.92rem,1.15vw,1.08rem)] leading-6 transition-opacity duration-500 ${enabled ? 'opacity-100' : 'opacity-0'}`}>
-            <TokenRenderer tokens={mainTokens} />
+            <TokenRenderer tokens={mainTokens} theme={theme} />
           </div>
         )}
       </div>
 
-      <FooterBar enabled={enabled} footerLeft={number === 1 ? 'Client' : footerLeft} status={status} infoKey={infoKey} onInfoOpen={onInfoOpen} onExpandOpen={onExpandOpen} />
+      <FooterBar enabled={enabled} footerLeft={number === 1 ? BOX_TITLES.client : footerLeft} status={status} infoKey={infoKey} theme={theme} onInfoOpen={onInfoOpen} onExpandOpen={onExpandOpen} />
     </section>
+  )
+}
+
+function GuidePanel({ theme, width, onResizeStart, onClose }) {
+  return (
+    <aside
+      className="relative h-full shrink-0 border-r"
+      style={{ width: `${width}px`, borderRightColor: theme.panelBorder, backgroundColor: theme.modalBg }}
+    >
+      <button
+        type="button"
+        onPointerDown={(event) => {
+          event.preventDefault()
+          onResizeStart()
+        }}
+        className="absolute right-0 top-0 z-10 h-full w-4 translate-x-1/2 cursor-col-resize"
+        aria-hidden="true"
+      >
+        <span
+          className="absolute left-1/2 top-1/2 h-24 w-[3px] -translate-x-1/2 -translate-y-1/2 rounded-full"
+          style={{ backgroundColor: theme.accent }}
+        />
+      </button>
+
+      <div className="flex h-full flex-col overflow-hidden">
+        <div className="flex items-center justify-between border-b px-5 py-4" style={{ borderBottomColor: theme.panelBorder }}>
+          <h2 className="text-lg font-semibold" style={{ color: theme.textStrong }}>{GUIDE_TEXT.title}</h2>
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex h-9 w-9 items-center justify-center rounded-full border transition-colors"
+            style={{ borderColor: theme.panelBorder, color: theme.accent, backgroundColor: 'transparent' }}
+            aria-label={UI_TEXT.closeGuide}
+          >
+            <CloseIcon />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-5 py-5">
+          <div className="overflow-hidden rounded-[10px] border" style={{ borderColor: theme.panelBorder, backgroundColor: theme.panelBg }}>
+            <div className="aspect-video w-full">
+              <iframe
+                className="h-full w-full"
+                src={GUIDE_TEXT.videoEmbedUrl}
+                title={GUIDE_TEXT.videoTitle}
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                allowFullScreen
+              />
+            </div>
+          </div>
+
+          <div className="mt-6">
+            <div className="space-y-4 text-[0.95rem] leading-7" style={{ color: theme.text }}>
+              {GUIDE_TEXT.paragraphs.map((paragraph, index) => (
+                <p key={`guide-paragraph-${index}`}>
+                  <MarkdownText text={paragraph} theme={theme} />
+                </p>
+              ))}
+            </div>
+          </div>
+
+          <div className="mt-6 border-t pt-4 text-right" style={{ borderTopColor: theme.panelBorder }}>
+            <span className="text-sm font-semibold" style={{ color: theme.textStrong }}>{GUIDE_TEXT.referenceLabel}: </span>
+            <a
+              href={GUIDE_TEXT.referenceUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="text-sm underline underline-offset-4"
+              style={{ color: theme.accentStrong }}
+            >
+              {GUIDE_TEXT.referenceTitle}
+            </a>
+          </div>
+        </div>
+      </div>
+    </aside>
   )
 }
 
@@ -658,80 +866,87 @@ function SplitStageBox({
   footerLeft,
   status,
   infoKey,
+  theme,
   onInfoOpen,
   onExpandOpen,
 }) {
   return (
     <section
       className={stageClass(enabled, active)}
-      style={{ gridRow: row, gridColumn: col }}
+      style={{
+        gridRow: row,
+        gridColumn: col,
+        ...panelStyle(theme, enabled, active),
+      }}
     >
-      <span className={`absolute -left-7 top-3 text-3xl font-semibold ${enabled ? 'text-cyan-200' : 'text-slate-700'}`}>{number}.</span>
+      <span className="absolute -left-7 top-3 text-3xl font-semibold" style={{ color: enabled ? theme.numberEnabled : theme.numberDisabled }}>{number}.</span>
 
       <div className="flex flex-1 overflow-hidden">
-        <div className={`flex-1 overflow-hidden border-r p-4 sm:p-5 ${rightTokens?.length ? BOX_CHROME_ENABLED : 'border-transparent'}`}>
+        <div className="flex-1 overflow-hidden border-r p-4 sm:p-5" style={{ borderRightColor: rightTokens?.length ? theme.panelBorder : 'transparent' }}>
           <div className={`h-full overflow-hidden font-mono text-[clamp(0.92rem,1.12vw,1.02rem)] leading-6 transition-opacity duration-500 ${enabled ? 'opacity-100' : 'opacity-0'}`}>
-            <TokenRenderer tokens={leftTokens} />
+            <TokenRenderer tokens={leftTokens} theme={theme} />
           </div>
         </div>
         <div className="flex-1 overflow-hidden p-4 sm:p-5">
           <div className={`h-full overflow-hidden font-mono text-[clamp(0.92rem,1.12vw,1.02rem)] leading-6 transition-opacity duration-500 ${enabled && rightTokens?.length ? 'opacity-100' : 'opacity-0'}`}>
-            <TokenRenderer tokens={rightTokens} />
+            <TokenRenderer tokens={rightTokens} theme={theme} />
           </div>
         </div>
       </div>
 
-      <FooterBar enabled={enabled} footerLeft={footerLeft} status={status} infoKey={infoKey} onInfoOpen={onInfoOpen} onExpandOpen={onExpandOpen} />
+      <FooterBar enabled={enabled} footerLeft={footerLeft} status={status} infoKey={infoKey} theme={theme} onInfoOpen={onInfoOpen} onExpandOpen={onExpandOpen} />
     </section>
   )
 }
 
-function FooterBar({ enabled, footerLeft, status, infoKey, onInfoOpen, onExpandOpen }) {
+function FooterBar({ enabled, footerLeft, status, infoKey, theme, onInfoOpen, onExpandOpen }) {
   return (
-    <div className={`flex items-center justify-between border-t px-4 py-2 ${enabled ? `${BOX_CHROME_ENABLED} text-slate-100` : 'border-slate-700/70 text-slate-500'}`}>
+    <div className="flex items-center justify-between border-t px-4 py-2" style={{ borderTopColor: enabled ? theme.footerBorder : theme.footerMutedBorder, color: enabled ? theme.textStrong : theme.panelMutedText }}>
       <span className="flex items-center gap-2 text-[clamp(1rem,1.35vw,1.45rem)] font-medium">
-        <InfoButton disabled={!enabled} onClick={(anchor) => onInfoOpen?.(infoKey, anchor)} />
+        <InfoButton disabled={!enabled} theme={theme} onClick={(anchor) => onInfoOpen?.(infoKey, anchor)} />
         <span>{footerLeft}</span>
       </span>
       <span className="flex h-6 w-6 items-center justify-center">
         {status === 'waiting'
           ? <StatusLed status={status} />
-          : <ExpandButton disabled={!enabled} onClick={onExpandOpen} />}
+          : <ExpandButton disabled={!enabled} theme={theme} onClick={onExpandOpen} />}
       </span>
     </div>
   )
 }
 
-function InfoButton({ disabled, onClick }) {
+function InfoButton({ disabled, theme, onClick }) {
   return (
     <button
       type="button"
       disabled={disabled}
       onClick={(event) => onClick?.(event.currentTarget.getBoundingClientRect())}
-      aria-label="Open layer info"
+      aria-label={UI_TEXT.openLayerInfo}
       data-layer-info-anchor="true"
-      className="flex h-6 w-6 items-center justify-center rounded-full text-cyan-300 transition-colors hover:bg-cyan-300/10 disabled:text-slate-500"
+      className="flex h-6 w-6 items-center justify-center rounded-full transition-colors disabled:text-slate-500"
+      style={{ color: disabled ? undefined : theme.accent, backgroundColor: 'transparent' }}
     >
       <InfoIcon />
     </button>
   )
 }
 
-function ExpandButton({ disabled, onClick }) {
+function ExpandButton({ disabled, theme, onClick }) {
   return (
     <button
       type="button"
       disabled={disabled}
       onClick={onClick}
-      aria-label="Expand layer"
-      className="flex h-6 w-6 items-center justify-center rounded-full text-cyan-300 transition-colors hover:bg-cyan-300/10 disabled:text-slate-500"
+      aria-label={UI_TEXT.expandLayer}
+      className="flex h-6 w-6 items-center justify-center rounded-full transition-colors disabled:text-slate-500"
+      style={{ color: disabled ? undefined : theme.accent, backgroundColor: 'transparent' }}
     >
       <ExpandIcon />
     </button>
   )
 }
 
-function LayerInfoPopup({ layerKey, anchor, onClose }) {
+function LayerInfoPopup({ layerKey, anchor, theme, onClose }) {
   const info = LAYER_INFO[layerKey]
   if (!info) return null
 
@@ -741,51 +956,63 @@ function LayerInfoPopup({ layerKey, anchor, onClose }) {
 
   return (
     <div
-      className="fixed z-50 w-[320px] rounded-[10px] border border-cyan-200/40 bg-[#08111f] p-4 text-slate-100 shadow-[0_20px_80px_rgba(2,12,27,0.55)]"
-      style={{ left: `${left}px`, top: `${top}px` }}
+      className="fixed z-50 w-[320px] rounded-[10px] border p-4 shadow-[0_20px_80px_rgba(2,12,27,0.25)]"
+      style={{ left: `${left}px`, top: `${top}px`, borderColor: theme.panelBorder, backgroundColor: theme.popupBg, color: theme.textStrong }}
       data-layer-info-popup="true"
     >
-      <div className="absolute left-1/2 top-full h-3 w-3 -translate-x-1/2 -translate-y-1/2 rotate-45 border-b border-r border-cyan-200/40 bg-[#08111f]" />
+      <div className="absolute left-1/2 top-full h-3 w-3 -translate-x-1/2 -translate-y-1/2 rotate-45 border-b border-r" style={{ borderColor: theme.panelBorder, backgroundColor: theme.popupBg }} />
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h3 className="text-lg font-semibold text-cyan-50">{info.title}</h3>
+          <h3 className="text-lg font-semibold" style={{ color: theme.textStrong }}>{info.title}</h3>
         </div>
         <button
           type="button"
           onClick={onClose}
-          className="flex h-7 w-7 items-center justify-center rounded-full border border-cyan-200/40 text-cyan-100 transition-colors hover:bg-cyan-200/10"
-          aria-label="Close layer info"
+          className="flex h-7 w-7 items-center justify-center rounded-full border transition-colors"
+          style={{ borderColor: theme.panelBorder, color: theme.accent, backgroundColor: 'transparent' }}
+          aria-label={UI_TEXT.closeLayerInfo}
         >
-          ×
+          <CloseIcon />
         </button>
       </div>
-      <p className="mt-3 text-sm leading-6 text-slate-200/90">{info.body}</p>
+      <p className="mt-3 text-sm leading-6" style={{ color: theme.text }}>
+        <MarkdownText text={info.body} theme={theme} />
+      </p>
     </div>
   )
 }
 
-function LayerExpandModal({ layer, onClose }) {
+function LayerExpandModal({ layer, theme, onClose }) {
   const info = LAYER_INFO[layer.infoKey]
   if (!info) return null
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/70 p-6" onClick={onClose}>
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-6" style={{ backgroundColor: theme.overlay }} onClick={onClose}>
       <div
-        className="relative grid w-full max-w-7xl grid-cols-[1.2fr_0.8fr] gap-6 rounded-[14px] border border-cyan-200/30 bg-[#07111e] p-6 shadow-[0_30px_120px_rgba(2,12,27,0.65)]"
+        className="relative grid w-full max-w-7xl grid-cols-[1.2fr_0.8fr] gap-6 rounded-[14px] border p-6 shadow-[0_30px_120px_rgba(2,12,27,0.25)]"
+        style={{ borderColor: theme.panelBorder, backgroundColor: theme.modalBg }}
         onClick={(event) => event.stopPropagation()}
       >
         <div className="min-h-[480px]">
-          <LayerPreviewCard layer={layer} />
+          <LayerPreviewCard layer={layer} theme={theme} />
         </div>
-        <div className="pt-8 text-base leading-8 text-slate-200/92">
-          <p>{info.body}</p>
-          <p className="mt-6">{info.more}</p>
+        <div className="pt-8 text-base leading-8" style={{ color: theme.text }}>
+          <h3 className="-mt-8 mb-4 text-2xl font-medium" style={{ color: theme.textStrong }}>
+            {info.title}
+          </h3>
+          <p>
+            <MarkdownText text={info.body} theme={theme} />
+          </p>
+          <p className="mt-6">
+            <MarkdownText text={info.more} theme={theme} />
+          </p>
         </div>
         <button
           type="button"
           onClick={onClose}
-          className="absolute right-4 top-4 flex h-9 w-9 items-center justify-center rounded-full border border-cyan-200/40 text-cyan-100 transition-colors hover:bg-cyan-200/10"
-          aria-label="Close expanded layer"
+          className="absolute right-4 top-4 flex h-9 w-9 items-center justify-center rounded-full border transition-colors"
+          style={{ borderColor: theme.panelBorder, color: theme.accent, backgroundColor: 'transparent' }}
+          aria-label={UI_TEXT.closeExpandedLayer}
         >
           <CloseIcon />
         </button>
@@ -794,38 +1021,33 @@ function LayerExpandModal({ layer, onClose }) {
   )
 }
 
-function LayerPreviewCard({ layer }) {
+function LayerPreviewCard({ layer, theme }) {
   return (
-    <div className="h-full rounded-[10px] border border-cyan-200/30 bg-[#040b17] p-5">
-      <div className="h-full">
-        {layer.type === 'split' ? (
-          <div className="flex h-full flex-col overflow-hidden rounded-[8px] border border-cyan-200/35">
-            <div className="flex flex-1 overflow-hidden">
-              <div className="flex-1 overflow-auto border-r border-cyan-200/35 p-5 font-mono text-[1rem] leading-7 text-slate-100">
-                <TokenRenderer tokens={layer.leftTokens} />
-              </div>
-              <div className="flex-1 overflow-auto p-5 font-mono text-[1rem] leading-7 text-slate-100">
-                <TokenRenderer tokens={layer.rightTokens} />
-              </div>
+    <div className="h-full">
+      {layer.type === 'split' ? (
+        <div className="flex h-full overflow-hidden rounded-[8px] border" style={{ borderColor: theme.panelBorder }}>
+          <div className="flex-1 overflow-auto border-r p-5 font-mono text-[1rem] leading-7" style={{ borderRightColor: theme.panelBorder, color: theme.textStrong }}>
+            <div className="-mx-5 mb-4 border-b px-5 pb-3 text-center text-sm font-medium" style={{ color: theme.textStrong, borderBottomColor: theme.panelBorder }}>
+              {UI_TEXT.inbound}
             </div>
-            <div className="border-t border-cyan-200/35 px-5 py-3 text-xl font-medium text-slate-100">{layer.footerLeft}</div>
+            <TokenRenderer tokens={layer.leftTokens} theme={theme} />
           </div>
-        ) : layer.type === 'proto' ? (
-          <div className="flex h-full flex-col overflow-hidden rounded-[8px] border border-cyan-200/35">
-            <div className="flex-1 overflow-auto p-5 font-mono text-[1rem] leading-7 text-slate-100">
-              <TokenRenderer tokens={layer.mainTokens} />
+          <div className="flex-1 overflow-auto p-5 font-mono text-[1rem] leading-7" style={{ color: theme.textStrong }}>
+            <div className="-mx-5 mb-4 border-b px-5 pb-3 text-center text-sm font-medium" style={{ color: theme.textStrong, borderBottomColor: theme.panelBorder }}>
+              {UI_TEXT.outbound}
             </div>
-            <div className="border-t border-cyan-200/35 px-5 py-3 text-xl font-medium text-slate-100">{layer.footerLeft}</div>
+            <TokenRenderer tokens={layer.rightTokens} theme={theme} />
           </div>
-        ) : (
-          <div className="flex h-full flex-col overflow-hidden rounded-[8px] border border-cyan-200/35">
-            <div className="flex-1 overflow-auto p-5 font-mono text-[1rem] leading-7 text-slate-100">
-              <TokenRenderer tokens={layer.mainTokens} />
-            </div>
-            <div className="border-t border-cyan-200/35 px-5 py-3 text-xl font-medium text-slate-100">{layer.footerLeft}</div>
-          </div>
-        )}
-      </div>
+        </div>
+      ) : layer.type === 'proto' ? (
+        <div className="h-full overflow-auto border p-5 font-mono text-[1rem] leading-7" style={{ borderColor: theme.panelBorder, color: theme.textStrong }}>
+          <TokenRenderer tokens={layer.mainTokens} theme={theme} />
+        </div>
+      ) : (
+        <div className="h-full overflow-auto border p-5 font-mono text-[1rem] leading-7" style={{ borderColor: theme.panelBorder, color: theme.textStrong }}>
+          <TokenRenderer tokens={layer.mainTokens} theme={theme} />
+        </div>
+      )}
     </div>
   )
 }
@@ -838,7 +1060,7 @@ function StatusLed({ status }) {
   return <span className="h-3.5 w-3.5 rounded-full bg-amber-300 shadow-[0_0_14px_rgba(252,211,77,0.8)] animate-[rpc-led_1.2s_ease-in-out_infinite]" />
 }
 
-function VerticalArrow({ id, direction, row, col, lane, visible, active, start, end, height }) {
+function VerticalArrow({ id, direction, row, col, lane, visible, active, start, end, height, theme }) {
   const isDown = direction === 'down'
   const position = start || (lane === 'left' ? '34%' : '66%')
   const arrowEnd = end || '7px'
@@ -860,93 +1082,93 @@ function VerticalArrow({ id, direction, row, col, lane, visible, active, start, 
       }}
     >
       <div className="relative h-full w-full overflow-visible">
-        <div className={`absolute top-1 w-[3px] ${active ? 'bg-cyan-300 shadow-[0_0_12px_rgba(34,211,238,0.8)]' : 'bg-cyan-400'}`} style={{ left: position, height: shaftHeight }} />
+        <div className="absolute top-1 w-[3px]" style={{ left: position, height: shaftHeight, backgroundColor: active ? theme.accent : theme.accentStrong, boxShadow: active ? theme.accentShadow : 'none' }} />
         <div
           className={`absolute ${isDown ? 'bottom-1' : 'top-1 rotate-180'}`}
           style={{ left: `calc(${position} - ${arrowEnd})` }}
         >
-          <ArrowHead active={active} />
+          <ArrowHead active={active} theme={theme} />
         </div>
       </div>
     </div>
   )
 }
 
-function NetworkBridge({ row, col, showForward, showReturn, forwardActive, returnActive }) {
+function NetworkBridge({ row, col, showForward, showReturn, forwardActive, returnActive, theme }) {
   return (
     <div className="pointer-events-none relative z-20" style={{ gridRow: row, gridColumn: col }}>
       <div className="absolute left-0 top-[40%] h-[3px] w-full bg-transparent">
-        <div className={`absolute left-0 top-0 h-full transition-all duration-500 ${showForward ? 'w-full bg-cyan-400 opacity-100' : 'w-0 opacity-0'}`} />
+        <div className="absolute left-0 top-0 h-full transition-all duration-500" style={{ width: showForward ? '100%' : '0', opacity: showForward ? 1 : 0, backgroundColor: theme.accentStrong }} />
         {showForward && (
           <div className="absolute right-0 top-1/2 -translate-y-1/2">
-            <ArrowHead horizontal active={forwardActive} />
+            <ArrowHead horizontal active={forwardActive} theme={theme} />
           </div>
         )}
       </div>
 
       <div className="absolute left-0 top-[60%] h-[3px] w-full bg-transparent">
-        <div className={`absolute right-0 top-0 h-full transition-all duration-500 ${showReturn ? 'w-full bg-cyan-400 opacity-100' : 'w-0 opacity-0'}`} />
+        <div className="absolute right-0 top-0 h-full transition-all duration-500" style={{ width: showReturn ? '100%' : '0', opacity: showReturn ? 1 : 0, backgroundColor: theme.accentStrong }} />
         {showReturn && (
           <div className="absolute left-0 top-1/2 -translate-y-1/2 rotate-180">
-            <ArrowHead horizontal active={returnActive} />
+            <ArrowHead horizontal active={returnActive} theme={theme} />
           </div>
         )}
       </div>
 
       <div className="absolute inset-0 flex items-center justify-center">
         {(showForward || showReturn) && (
-          <span className={`text-lg font-semibold uppercase tracking-[0.42em] ${forwardActive || returnActive ? 'text-cyan-100' : 'text-cyan-200/85'}`}>
-            Network
+          <span className="text-lg font-semibold uppercase tracking-[0.42em]" style={{ color: forwardActive || returnActive ? theme.textStrong : theme.accent }}>
+            {UI_TEXT.network}
           </span>
         )}
       </div>
 
       {showForward && (
-        <span className={`absolute top-[40%] h-3.5 w-3.5 -translate-y-1/2 rounded-full ${forwardActive ? 'left-[22%] bg-fuchsia-400 shadow-[0_0_14px_rgba(217,70,239,0.9)] animate-[rpc-ping_1.4s_linear_infinite]' : 'left-[70%] bg-cyan-300'}`} />
+        <span className={`absolute top-[40%] h-3.5 w-3.5 -translate-y-1/2 rounded-full ${forwardActive ? 'left-[22%] animate-[rpc-ping_1.4s_linear_infinite]' : 'left-[70%]'}`} style={{ backgroundColor: forwardActive ? theme.packetActive : theme.packetIdle, boxShadow: forwardActive ? `0 0 14px ${theme.packetActive}` : 'none' }} />
       )}
       {showReturn && (
-        <span className={`absolute top-[60%] h-3.5 w-3.5 -translate-y-1/2 rounded-full ${returnActive ? 'left-[70%] bg-fuchsia-400 shadow-[0_0_14px_rgba(217,70,239,0.9)] animate-[rpc-ping_1.4s_linear_infinite]' : 'left-[22%] bg-cyan-300'}`} />
+        <span className={`absolute top-[60%] h-3.5 w-3.5 -translate-y-1/2 rounded-full ${returnActive ? 'left-[70%] animate-[rpc-ping_1.4s_linear_infinite]' : 'left-[22%]'}`} style={{ backgroundColor: returnActive ? theme.packetActive : theme.packetIdle, boxShadow: returnActive ? `0 0 14px ${theme.packetActive}` : 'none' }} />
       )}
     </div>
   )
 }
 
-function SideLabel({ row, col, text }) {
+function SideLabel({ row, col, text, theme }) {
   return (
     <div
-      className="flex items-center justify-center text-lg font-semibold uppercase tracking-[0.42em] text-cyan-100/85"
-      style={{ gridRow: row, gridColumn: col }}
+      className="flex items-center justify-center text-lg font-semibold uppercase tracking-[0.42em]"
+      style={{ gridRow: row, gridColumn: col, color: theme.accent }}
     >
       {text}
     </div>
   )
 }
 
-function ProtoPanel({ row, col, visible, onInfoOpen, onExpandOpen }) {
+function ProtoPanel({ row, col, visible, theme, onInfoOpen, onExpandOpen }) {
   return (
     <div
       className={`pointer-events-none relative z-10 flex h-full items-end justify-center px-2 transition-opacity duration-300 ${visible ? 'opacity-100' : 'opacity-0'}`}
       style={{ gridRow: row, gridColumn: col, marginTop: '-13rem' }}
     >
-      <div className="pointer-events-auto flex w-full flex-col overflow-hidden rounded-[6px] border border-cyan-200/30 bg-[#06101d]">
-        <div className="px-4 py-3 font-mono text-[11px] leading-5 text-cyan-50/90">
-          <div className="text-cyan-200/75">service CommandService {'{'}</div>
-          <div>  rpc RunCommand(RunCommandRequest) returns (RunCommandResponse);</div>
+      <div className="pointer-events-auto flex w-full flex-col overflow-hidden rounded-[6px] border" style={{ borderColor: theme.panelBorder, backgroundColor: theme.protoBg }}>
+        <div className="px-4 py-3 font-mono text-[11px] leading-5" style={{ color: theme.textStrong }}>
+          <div style={{ color: theme.accent }}>{CODE_TEXT.serviceCommandService} {'{'}</div>
+          <div>  {CODE_TEXT.rpcSignature}</div>
           <div>{'}'}</div>
-          <div className="mt-2 text-cyan-200/75">message RunCommandRequest {'{'}</div>
-          <div>  string command = 1;</div>
+          <div className="mt-2" style={{ color: theme.accent }}>{CODE_TEXT.messageRunCommandRequest} {'{'}</div>
+          <div>  {CODE_TEXT.stringCommand}</div>
           <div>{'}'}</div>
-          <div className="mt-2 text-cyan-200/75">message RunCommandResponse {'{'}</div>
-          <div>  string stdout = 1;</div>
+          <div className="mt-2" style={{ color: theme.accent }}>{CODE_TEXT.messageRunCommandResponse} {'{'}</div>
+          <div>  {CODE_TEXT.stringStdout}</div>
           <div>{'}'}</div>
         </div>
-        <div className={`flex items-center justify-between border-t px-4 py-2 ${BOX_CHROME_ENABLED} text-slate-100`}>
+        <div className="flex items-center justify-between border-t px-4 py-2" style={{ borderTopColor: theme.footerBorder, color: theme.textStrong }}>
           <span className="flex items-center gap-2 text-[clamp(1rem,1.2vw,1.2rem)] font-medium">
-            <InfoButton disabled={!visible} onClick={(anchor) => onInfoOpen?.('Proto Definition', anchor)} />
-            <span>Proto Definition</span>
+            <InfoButton disabled={!visible} theme={theme} onClick={(anchor) => onInfoOpen?.(BOX_TITLES.protoDefinition, anchor)} />
+            <span>{BOX_TITLES.protoDefinition}</span>
           </span>
           <span className="flex h-6 w-6 items-center justify-center">
-            <ExpandButton disabled={!visible} onClick={onExpandOpen} />
+            <ExpandButton disabled={!visible} theme={theme} onClick={onExpandOpen} />
           </span>
         </div>
       </div>
@@ -954,7 +1176,7 @@ function ProtoPanel({ row, col, visible, onInfoOpen, onExpandOpen }) {
   )
 }
 
-function TokenRenderer({ tokens, large = false }) {
+function TokenRenderer({ tokens, large = false, theme }) {
   if (!tokens?.length) return <div className="h-full" />
 
   return (
@@ -965,13 +1187,58 @@ function TokenRenderer({ tokens, large = false }) {
           return <span key={`indent-${index}`} className="inline-block" style={{ marginLeft: `${token.level * 1}rem` }} aria-hidden="true" />
         }
         return (
-          <span key={`${token.kind}-${index}`} className={tokenClass(token.kind)}>
+          <span key={`${token.kind}-${index}`} style={tokenStyle(token.kind, theme)}>
             {token.value}
           </span>
         )
       })}
     </>
   )
+}
+
+function MarkdownText({ text, theme }) {
+  return parseInlineMarkdown(text).map((segment, index) => {
+    if (segment.kind === 'highlight') {
+      return (
+        <span key={`md-${index}`} style={{ color: theme.textHighlight, fontWeight: 600 }}>
+          {segment.value}
+        </span>
+      )
+    }
+
+    if (segment.kind === 'code') {
+      return (
+        <code
+          key={`md-${index}`}
+          className="rounded px-1 py-0.5 font-mono text-[0.92em]"
+          style={{ color: theme.textStrong, backgroundColor: theme.accentSoftBg }}
+        >
+          {segment.value}
+        </code>
+      )
+    }
+
+    return <span key={`md-${index}`}>{segment.value}</span>
+  })
+}
+
+function parseInlineMarkdown(text) {
+  if (!text) return []
+
+  const pattern = /(\*\*[^*]+\*\*|`[^`]+`)/g
+  const parts = text.split(pattern).filter(Boolean)
+
+  return parts.map((part) => {
+    if (part.startsWith('**') && part.endsWith('**')) {
+      return { kind: 'highlight', value: part.slice(2, -2) }
+    }
+
+    if (part.startsWith('`') && part.endsWith('`')) {
+      return { kind: 'code', value: part.slice(1, -1) }
+    }
+
+    return { kind: 'text', value: part }
+  })
 }
 
 function buildClientStubRequest(cmd) {
@@ -984,7 +1251,7 @@ function buildClientStubRequest(cmd) {
     { kind: 'punct', value: ' }' },
     { kind: 'dim', value: ')' },
     { kind: 'newline' },
-    { kind: 'dim', value: 'Request Message' },
+    { kind: 'dim', value: CODE_TEXT.requestMessage },
     { kind: 'newline' },
     ...formatMessage('RunCommandRequest', [['command', `"${cmd}"`]]),
   ]
@@ -1000,17 +1267,17 @@ function buildRuntimeIngress(cmd) {
 
 function buildServerStubRequest(cmd) {
   return [
-    { kind: 'dim', value: 'Decode protobuf request' },
+    { kind: 'dim', value: CODE_TEXT.decodeProtobufRequest },
     { kind: 'newline' },
     ...formatMessage('RunCommandRequest', [['command', `"${cmd}"`]]),
     { kind: 'newline' },
-    { kind: 'dim', value: 'Request Message -> service' },
+    { kind: 'dim', value: CODE_TEXT.requestMessageToService },
   ]
 }
 
 function buildServerStubResponse(cmd) {
   return [
-    { kind: 'dim', value: 'Encode protobuf response' },
+    { kind: 'dim', value: CODE_TEXT.encodeProtobufResponse },
     { kind: 'newline' },
     ...formatMessage('RunCommandResponse', [['stdout', `"${COMMANDS[cmd][0]}"`]]),
   ]
@@ -1026,24 +1293,24 @@ function buildRuntimeEgress(cmd) {
 
 function buildClientStubResponse(cmd) {
   return [
-    { kind: 'dim', value: 'Response Message' },
+    { kind: 'dim', value: CODE_TEXT.responseMessage },
     { kind: 'newline' },
     ...formatMessage('RunCommandResponse', [['stdout', `"${COMMANDS[cmd][0]}"`]]),
     { kind: 'newline' },
-    { kind: 'dim', value: 'stdout -> caller' },
+    { kind: 'dim', value: CODE_TEXT.stdoutToCaller },
   ]
 }
 
 function buildServiceImplementation(cmd) {
   return [
-    { kind: 'dim', value: 'RunCommand(request)' },
+    { kind: 'dim', value: CODE_TEXT.runCommandRequest },
     { kind: 'newline' },
-    { kind: 'dim', value: 'request.command' },
+    { kind: 'dim', value: CODE_TEXT.requestCommand },
     { kind: 'punct', value: ' = ' },
     { kind: 'string', value: `"${cmd}"` },
     { kind: 'newline' },
     { kind: 'newline' },
-    { kind: 'dim', value: 'Response Message' },
+    { kind: 'dim', value: CODE_TEXT.responseMessage },
     { kind: 'newline' },
     ...formatMessage('RunCommandResponse', [['stdout', `"${COMMANDS[cmd][0]}"`]]),
   ]
@@ -1051,30 +1318,30 @@ function buildServiceImplementation(cmd) {
 
 function buildHttp2RequestTokens(cmd) {
   return [
-    { kind: 'key', value: 'HTTP/2 HEADERS' },
+    { kind: 'key', value: CODE_TEXT.http2Headers },
     { kind: 'punct', value: ':' },
     { kind: 'newline' },
     { kind: 'indent', level: 1 },
-    { kind: 'key', value: ':method' },
+    { kind: 'key', value: CODE_TEXT.method },
     { kind: 'punct', value: ' ' },
-    { kind: 'string', value: 'POST' },
+    { kind: 'string', value: CODE_TEXT.post },
     { kind: 'newline' },
     { kind: 'indent', level: 1 },
-    { kind: 'key', value: ':path' },
+    { kind: 'key', value: CODE_TEXT.path },
     { kind: 'punct', value: ' ' },
-    { kind: 'string', value: '"/CommandService/RunCommand"' },
+    { kind: 'string', value: CODE_TEXT.runCommandPath },
     { kind: 'newline' },
     { kind: 'indent', level: 1 },
-    { kind: 'key', value: 'content-type' },
+    { kind: 'key', value: CODE_TEXT.contentType },
     { kind: 'punct', value: ' ' },
-    { kind: 'string', value: '"application/grpc"' },
+    { kind: 'string', value: CODE_TEXT.grpcContentType },
     { kind: 'newline' },
     { kind: 'newline' },
-    { kind: 'key', value: 'DATA' },
+    { kind: 'key', value: CODE_TEXT.data },
     { kind: 'punct', value: ':' },
     { kind: 'newline' },
     { kind: 'indent', level: 1 },
-    { kind: 'dim', value: '[length-prefixed protobuf RunCommandRequest]' },
+    { kind: 'dim', value: CODE_TEXT.requestPayloadHint },
     { kind: 'newline' },
     ...formatMessage('RunCommandRequest', [['command', `"${cmd}"`]]),
   ]
@@ -1082,50 +1349,50 @@ function buildHttp2RequestTokens(cmd) {
 
 function buildHttp2ResponseTokens(cmd) {
   return [
-    { kind: 'key', value: 'DATA' },
+    { kind: 'key', value: CODE_TEXT.data },
     { kind: 'punct', value: ':' },
     { kind: 'newline' },
     { kind: 'indent', level: 1 },
-    { kind: 'dim', value: '[length-prefixed protobuf RunCommandResponse]' },
+    { kind: 'dim', value: CODE_TEXT.responsePayloadHint },
     { kind: 'newline' },
     ...formatMessage('RunCommandResponse', [['stdout', `"${COMMANDS[cmd][0]}"`]]),
     { kind: 'newline' },
     { kind: 'newline' },
-    { kind: 'key', value: 'TRAILERS' },
+    { kind: 'key', value: CODE_TEXT.trailers },
     { kind: 'punct', value: ':' },
     { kind: 'newline' },
     { kind: 'indent', level: 1 },
-    { kind: 'key', value: 'grpc-status' },
+    { kind: 'key', value: CODE_TEXT.grpcStatus },
     { kind: 'punct', value: ' ' },
-    { kind: 'dim', value: '0' },
+    { kind: 'dim', value: CODE_TEXT.grpcStatusOk },
   ]
 }
 
 function buildProtoTokens() {
   return [
-    { kind: 'key', value: 'service CommandService' },
+    { kind: 'key', value: CODE_TEXT.serviceCommandService },
     { kind: 'punct', value: ' {' },
     { kind: 'newline' },
     { kind: 'indent', level: 1 },
-    { kind: 'dim', value: 'rpc RunCommand(RunCommandRequest) returns (RunCommandResponse);' },
+    { kind: 'dim', value: CODE_TEXT.rpcSignature },
     { kind: 'newline' },
     { kind: 'punct', value: '}' },
     { kind: 'newline' },
     { kind: 'newline' },
-    { kind: 'key', value: 'message RunCommandRequest' },
+    { kind: 'key', value: CODE_TEXT.messageRunCommandRequest },
     { kind: 'punct', value: ' {' },
     { kind: 'newline' },
     { kind: 'indent', level: 1 },
-    { kind: 'dim', value: 'string command = 1;' },
+    { kind: 'dim', value: CODE_TEXT.stringCommand },
     { kind: 'newline' },
     { kind: 'punct', value: '}' },
     { kind: 'newline' },
     { kind: 'newline' },
-    { kind: 'key', value: 'message RunCommandResponse' },
+    { kind: 'key', value: CODE_TEXT.messageRunCommandResponse },
     { kind: 'punct', value: ' {' },
     { kind: 'newline' },
     { kind: 'indent', level: 1 },
-    { kind: 'dim', value: 'string stdout = 1;' },
+    { kind: 'dim', value: CODE_TEXT.stringStdout },
     { kind: 'newline' },
     { kind: 'punct', value: '}' },
   ]
@@ -1173,14 +1440,14 @@ function buildExpandedLayer(boxes, boxId, infoKey) {
 function buildProtoExpandedLayer() {
   return {
     type: 'proto',
-    infoKey: 'Proto Definition',
-    footerLeft: 'Proto Definition',
+    infoKey: BOX_TITLES.protoDefinition,
+    footerLeft: BOX_TITLES.protoDefinition,
     mainTokens: buildProtoTokens(),
   }
 }
 
-function ArrowHead({ horizontal = false, active = false }) {
-  const stroke = active ? '#67E8F9' : '#22D3EE'
+function ArrowHead({ horizontal = false, active = false, theme }) {
+  const stroke = active ? theme.accent : theme.accentStrong
 
   if (horizontal) {
     return (
@@ -1220,6 +1487,35 @@ function ExpandIcon() {
   )
 }
 
+function SunIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <circle cx="12" cy="12" r="4.2" stroke="currentColor" strokeWidth="1.8" />
+      <path d="M12 2.5V5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+      <path d="M12 19V21.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+      <path d="M21.5 12H19" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+      <path d="M5 12H2.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+      <path d="M18.72 5.28L16.95 7.05" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+      <path d="M7.05 16.95L5.28 18.72" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+      <path d="M18.72 18.72L16.95 16.95" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+      <path d="M7.05 7.05L5.28 5.28" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  )
+}
+
+function MoonIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d="M19.5 14.5C18.5 15.1 17.34 15.45 16.1 15.45C12.43 15.45 9.45 12.47 9.45 8.8C9.45 7.56 9.8 6.4 10.4 5.4C6.86 6.09 4.2 9.21 4.2 12.95C4.2 17.2 7.65 20.65 11.9 20.65C15.64 20.65 18.76 17.99 19.5 14.5Z"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinejoin="round"
+      />
+    </svg>
+  )
+}
+
 function CloseIcon() {
   return (
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -1244,37 +1540,37 @@ function GearIcon() {
 }
 
 function stageClass(enabled, active) {
-  return `relative flex min-h-0 flex-col overflow-hidden rounded-[6px] border transition-all duration-500 ${
-    enabled
-      ? `${BOX_CHROME_ENABLED} bg-[#040b17] text-slate-100 opacity-100`
-      : 'border-slate-800 bg-[#050814] text-slate-600 opacity-0.58'
-  } ${
-    active
-      ? 'shadow-[0_0_0_2px_rgba(34,211,238,0.16),0_0_28px_rgba(34,211,238,0.14)]'
-      : ''
-  }`
+  return `relative flex min-h-0 flex-col overflow-hidden rounded-[6px] border transition-all duration-500 ${active ? 'shadow-[0_0_0_2px_rgba(34,211,238,0.16),0_0_28px_rgba(34,211,238,0.14)]' : ''}`
 }
 
-function tokenClass(kind) {
+function panelStyle(theme, enabled, active) {
+  return {
+    backgroundColor: enabled ? theme.panelBg : theme.panelMutedBg,
+    borderColor: enabled ? theme.panelBorder : theme.panelMutedBorder,
+    color: enabled ? theme.panelText : theme.panelMutedText,
+    opacity: enabled ? 1 : 0.58,
+    boxShadow: active ? theme.accentShadow : 'none',
+  }
+}
+
+function tokenStyle(kind, theme) {
   switch (kind) {
     case 'command':
-      return 'text-cyan-100'
+      return { color: theme.command }
     case 'output':
-      return 'text-emerald-300'
+      return { color: theme.output }
     case 'key':
-      return 'text-sky-300'
+      return { color: theme.key }
     case 'string':
-      return 'text-amber-300'
+      return { color: theme.string }
     case 'boolean':
-      return 'text-fuchsia-300'
+      return { color: theme.boolean }
     case 'punct':
-      return 'text-slate-400'
-    case 'icon':
-      return 'text-cyan-300'
+      return { color: theme.punct }
     case 'dim':
-      return 'text-slate-300'
+      return { color: theme.dim }
     default:
-      return 'text-slate-100'
+      return { color: theme.textStrong }
   }
 }
 
