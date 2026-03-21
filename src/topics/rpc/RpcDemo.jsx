@@ -316,7 +316,7 @@ export default function RpcDemo() {
   const [infoLayer, setInfoLayer] = useState(null)
   const [infoAnchor, setInfoAnchor] = useState(null)
   const [expandedLayer, setExpandedLayer] = useState(null)
-  const [isGuideOpen, setIsGuideOpen] = useState(false)
+  const [isGuideOpen, setIsGuideOpen] = useState(true)
   const [guideWidth, setGuideWidth] = useState(460)
   const [revealedBoxes, setRevealedBoxes] = useState([1])
   const [revealedArrows, setRevealedArrows] = useState([])
