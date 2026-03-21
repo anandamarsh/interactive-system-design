@@ -60,6 +60,10 @@
     "referenceTitle": "Wikipedia: gRPC",
     "referenceUrl": "https://en.wikipedia.org/wiki/GRPC"
   },
+  "discussion": {
+    "buttonLabel": "Open discussion panel",
+    "title": "Discussion"
+  },
   "code": {
     "requestMessage": "Request Message",
     "responseMessage": "Response Message",

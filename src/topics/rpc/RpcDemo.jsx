@@ -18,7 +18,20 @@ const BOX_CHROME_ENABLED = 'border-cyan-200/40'
 const LAYER_INFO = rpcText.layers
 const UI_TEXT = rpcText.ui
 const GUIDE_TEXT = rpcText.guide
+const DISCUSSION_TEXT = rpcText.discussion
 const CODE_TEXT = rpcText.code
+const GISCUS_CONFIG = {
+  repo: 'anandamarsh/interactive-system-design',
+  repoId: 'R_kgDORr4jBA',
+  category: 'General',
+  categoryId: 'DIC_kwDORr4jBM4C471U',
+  mapping: 'pathname',
+  strict: '0',
+  reactionsEnabled: '1',
+  emitMetadata: '0',
+  inputPosition: 'bottom',
+  lang: 'en',
+}
 const BOX_TITLES = {
   client: LAYER_INFO.Client.title,
   clientStub: LAYER_INFO['Client Stub'].title,
@@ -49,7 +62,7 @@ const THEMES = {
     textStrong: '#f8fafc',
     textMuted: '#cbd5e1',
     textFaint: '#94a3b8',
-    textHighlight: '#ef4444',
+    textHighlight: '#4ade80',
     inputBg: 'rgba(0, 0, 0, 0.35)',
     inputBorder: 'rgba(165, 243, 252, 0.35)',
     placeholder: '#64748b',
@@ -90,7 +103,7 @@ const THEMES = {
     textStrong: '#0f172a',
     textMuted: '#475569',
     textFaint: '#64748b',
-    textHighlight: '#dc2626',
+    textHighlight: '#16a34a',
     inputBg: 'rgba(248, 250, 252, 0.96)',
     inputBorder: 'rgba(2, 132, 199, 0.3)',
     placeholder: '#94a3b8',
@@ -308,7 +321,7 @@ const STEP_ORDER = [
 
 export default function RpcDemo() {
   const [command, setCommand] = useState('')
-  const { themeName, setThemeName } = useAppTheme()
+  const { themeName } = useAppTheme()
   const [boxes, setBoxes] = useState(INITIAL_BOXES)
   const [activeTarget, setActiveTarget] = useState(null)
   const [isRunning, setIsRunning] = useState(false)
@@ -317,6 +330,7 @@ export default function RpcDemo() {
   const [infoAnchor, setInfoAnchor] = useState(null)
   const [expandedLayer, setExpandedLayer] = useState(null)
   const [isGuideOpen, setIsGuideOpen] = useState(true)
+  const [isDiscussionOpen, setIsDiscussionOpen] = useState(false)
   const [guideWidth, setGuideWidth] = useState(460)
   const [revealedBoxes, setRevealedBoxes] = useState([1])
   const [revealedArrows, setRevealedArrows] = useState([])
@@ -360,6 +374,7 @@ export default function RpcDemo() {
         setInfoAnchor(null)
         setExpandedLayer(null)
         setIsGuideOpen(false)
+        setIsDiscussionOpen(false)
       }
     }
 
@@ -696,6 +711,29 @@ export default function RpcDemo() {
       {expandedLayer && (
         <LayerExpandModal layer={expandedLayer} theme={theme} onClose={() => setExpandedLayer(null)} />
       )}
+
+      {!isDiscussionOpen && (
+        <div className="pointer-events-none absolute bottom-4 right-4 z-40">
+          <button
+            type="button"
+            onClick={() => setIsDiscussionOpen(true)}
+            className="pointer-events-auto flex h-12 w-12 items-center justify-center rounded-full border shadow-[0_18px_40px_rgba(2,12,27,0.18)] transition-transform hover:-translate-y-0.5"
+            style={{ borderColor: theme.panelBorder, backgroundColor: theme.panelBg, color: theme.accent }}
+            aria-label={DISCUSSION_TEXT.buttonLabel}
+          >
+            <DiscussionIcon />
+          </button>
+        </div>
+      )}
+
+      <div className="pointer-events-none absolute bottom-0 right-0 z-30 pl-6 pt-6">
+        <DiscussionSheet
+          open={isDiscussionOpen}
+          theme={theme}
+          themeName={themeName}
+          onClose={() => setIsDiscussionOpen(false)}
+        />
+      </div>
     </div>
   )
 }
@@ -853,6 +891,82 @@ function GuidePanel({ theme, width, onResizeStart, onClose }) {
       </div>
     </aside>
   )
+}
+
+function DiscussionSheet({ open, theme, themeName, onClose }) {
+  return (
+    <section
+      className={`w-[min(44rem,calc(100vw-2rem))] overflow-hidden rounded-tl-[6px] border-[1px] border-b-0 border-r-0 transition-all duration-300 ${open ? 'pointer-events-auto translate-y-0 opacity-100' : 'pointer-events-none translate-y-[110%] opacity-0'}`}
+      style={{
+        borderColor: theme.panelBorder,
+        backgroundColor: theme.modalBg,
+        boxShadow: themeName === 'dark'
+          ? 'rgba(34, 211, 238, 0.8) 0px 0px 12px'
+          : 'rgba(2, 132, 199, 0.28) 0px 0px 10px',
+      }}
+    >
+      <div className="flex items-center justify-between border-b px-5 py-4" style={{ borderBottomColor: theme.panelBorder }}>
+        <h2 className="text-lg font-semibold" style={{ color: theme.textStrong }}>{DISCUSSION_TEXT.title}</h2>
+        <button
+          type="button"
+          onClick={onClose}
+          className="flex h-9 w-9 items-center justify-center rounded-full border transition-colors"
+          style={{ borderColor: theme.panelBorder, color: theme.accent, backgroundColor: 'transparent' }}
+          aria-label={UI_TEXT.closeGuide}
+        >
+          <CloseIcon />
+        </button>
+      </div>
+
+      <div className="px-5 py-5">
+        <GiscusThread open={open} themeName={themeName} />
+      </div>
+    </section>
+  )
+}
+
+function GiscusThread({ open, themeName }) {
+  const containerRef = useRef(null)
+
+  useEffect(() => {
+    if (!open || !containerRef.current || containerRef.current.hasChildNodes()) return
+
+    const script = document.createElement('script')
+    script.src = 'https://giscus.app/client.js'
+    script.async = true
+    script.crossOrigin = 'anonymous'
+    script.setAttribute('data-repo', GISCUS_CONFIG.repo)
+    script.setAttribute('data-repo-id', GISCUS_CONFIG.repoId)
+    script.setAttribute('data-category', GISCUS_CONFIG.category)
+    script.setAttribute('data-category-id', GISCUS_CONFIG.categoryId)
+    script.setAttribute('data-mapping', GISCUS_CONFIG.mapping)
+    script.setAttribute('data-strict', GISCUS_CONFIG.strict)
+    script.setAttribute('data-reactions-enabled', GISCUS_CONFIG.reactionsEnabled)
+    script.setAttribute('data-emit-metadata', GISCUS_CONFIG.emitMetadata)
+    script.setAttribute('data-input-position', GISCUS_CONFIG.inputPosition)
+    script.setAttribute('data-theme', themeName === 'dark' ? 'dark' : 'light')
+    script.setAttribute('data-lang', GISCUS_CONFIG.lang)
+    containerRef.current.appendChild(script)
+  }, [open, themeName])
+
+  useEffect(() => {
+    if (!open) return
+    const iframe = containerRef.current?.querySelector('iframe.giscus-frame')
+    if (!iframe?.contentWindow) return
+
+    iframe.contentWindow.postMessage(
+      {
+        giscus: {
+          setConfig: {
+            theme: themeName === 'dark' ? 'dark' : 'light',
+          },
+        },
+      },
+      'https://giscus.app',
+    )
+  }, [open, themeName])
+
+  return <div ref={containerRef} className="min-h-[320px]" />
 }
 
 function SplitStageBox({
@@ -1521,6 +1635,17 @@ function CloseIcon() {
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
       <path d="M7 7L17 17" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
       <path d="M17 7L7 17" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
+    </svg>
+  )
+}
+
+function DiscussionIcon() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M6 7.5H18" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" />
+      <path d="M6 12H14.5" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" />
+      <path d="M6 16.5H11" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" />
+      <path d="M5 4.8H19C20.1 4.8 21 5.7 21 6.8V17.2C21 18.3 20.1 19.2 19 19.2H10.8L6.2 22V19.2H5C3.9 19.2 3 18.3 3 17.2V6.8C3 5.7 3.9 4.8 5 4.8Z" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
     </svg>
   )
 }

@@ -45,6 +45,17 @@ export default function Header({ onMenuClick }) {
       >
         {themeName === 'dark' ? <MoonIcon /> : <SunIcon />}
       </button>
+
+      <a
+        href="https://github.com/anandamarsh/interactive-system-design"
+        target="_blank"
+        rel="noreferrer"
+        className="flex h-10 w-10 items-center justify-center rounded-full transition-colors flex-shrink-0"
+        style={{ color: themeName === 'dark' ? '#67e8f9' : '#0284c7', backgroundColor: 'transparent' }}
+        aria-label="Open GitHub repository"
+      >
+        <GitHubIcon />
+      </a>
     </header>
   )
 }
@@ -82,6 +93,14 @@ function MoonIcon() {
         strokeWidth="1.8"
         strokeLinejoin="round"
       />
+    </svg>
+  )
+}
+
+function GitHubIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <path d="M12 2C6.48 2 2 6.6 2 12.26C2 16.79 4.87 20.63 8.84 21.98C9.34 22.07 9.52 21.76 9.52 21.5C9.52 21.26 9.51 20.45 9.5 19.58C6.73 20.2 6.14 18.37 6.14 18.37C5.68 17.16 5.03 16.84 5.03 16.84C4.12 16.2 5.1 16.21 5.1 16.21C6.1 16.29 6.63 17.27 6.63 17.27C7.52 18.84 8.97 18.39 9.54 18.12C9.63 17.46 9.89 17.01 10.18 16.75C7.97 16.49 5.64 15.61 5.64 11.7C5.64 10.59 6.03 9.68 6.67 8.98C6.56 8.72 6.22 7.66 6.77 6.22C6.77 6.22 7.61 5.94 9.5 7.26C10.3 7.03 11.15 6.92 12 6.92C12.85 6.92 13.7 7.03 14.5 7.26C16.39 5.94 17.23 6.22 17.23 6.22C17.78 7.66 17.44 8.72 17.33 8.98C17.97 9.68 18.36 10.59 18.36 11.7C18.36 15.62 16.02 16.49 13.8 16.75C14.17 17.08 14.5 17.71 14.5 18.68C14.5 20.08 14.49 21.21 14.49 21.5C14.49 21.76 14.67 22.08 15.18 21.98C19.14 20.63 22 16.79 22 12.26C22 6.6 17.52 2 12 2Z" />
     </svg>
   )
 }
