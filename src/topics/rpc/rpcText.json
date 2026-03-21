@@ -7,23 +7,23 @@
     },
     "Client Stub": {
       "title": "Client Stub",
-      "body": "The generated **client stub** turns the method call into **protobuf** request and response messages. It hides **serialization** details from the caller.",
-      "more": "This layer is where the method signature from the **.proto** file becomes usable application code. The stub knows the fully qualified **RPC path**, the request and response **protobuf types**, and how to **marshal** and **unmarshal** them. In many gRPC implementations this is also where **interceptors** hook in for logging, tracing, auth, or retries before the call reaches the transport runtime."
+      "body": "The generated **client stub** accepts a typed request object, starts the **RPC**, and hides **serialization** and transport details from the caller.",
+      "more": "This layer is where the method signature from the **.proto** file becomes usable application code. The stub knows the fully qualified **RPC path**, the request and response **protobuf types**, and how to pass those typed messages into the gRPC library for **marshalling** and **unmarshalling**. In many gRPC implementations this is also where **interceptors** hook in for logging, tracing, auth, or retries before the call reaches the transport runtime."
     },
     "RPC Runtime": {
       "title": "RPC Runtime",
-      "body": "The **gRPC runtime** maps **protobuf** messages onto **HTTP/2**. It sends **HEADERS**, **DATA**, and **TRAILERS** and reconstructs them on the receiving side.",
-      "more": "This is the **transport machinery** that makes gRPC distinct from a generic RPC sketch. A **unary request** is carried as **HTTP/2 headers** plus a **length-prefixed protobuf message** in the DATA frame, and the response comes back with its own DATA plus TRAILERS such as **grpc-status**. **Flow control**, **stream management**, **metadata propagation**, compression flags, and status handling all live conceptually in this layer."
+      "body": "The **gRPC runtime** serializes **protobuf** messages into the gRPC wire format and carries them over **HTTP/2** using **HEADERS**, **DATA**, and **TRAILERS**.",
+      "more": "This is the **transport machinery** that makes gRPC distinct from a generic RPC sketch. A **unary request** is carried as **initial metadata** in HTTP/2 headers plus a gRPC message inside the DATA frame, and the response comes back with its own DATA plus **trailing metadata** such as **grpc-status**. Each gRPC message adds a **1-byte compression flag** and **4-byte length prefix** before the protobuf bytes. **Flow control**, **stream management**, **metadata propagation**, compression flags, and status handling all live conceptually in this layer."
     },
     "Server Stub": {
       "title": "Server Stub",
-      "body": "The generated **server handler** decodes the incoming **protobuf request**, invokes the service method, and encodes the **protobuf response**.",
-      "more": "On the server side, generated **glue code** bridges transport and business logic. It accepts the decoded request message from the runtime, maps it to the right **RPC handler**, and then takes the service result and serializes it back into the expected **protobuf response type**. **Validation**, **interceptors**, auth checks, and request context propagation often pass through here before the actual service implementation runs."
+      "body": "The generated **server handler** receives the decoded request from the **gRPC runtime**, dispatches to the service method, and returns the typed response for encoding back onto the wire.",
+      "more": "On the server side, generated **glue code** bridges transport and business logic. The runtime reads **HTTP/2**, parses **gRPC framing**, deserializes the protobuf message, and then hands a typed request to the right **RPC handler**. The handler returns a typed response, which the runtime then serializes back onto the wire. **Validation**, **interceptors**, auth checks, and request context propagation often pass through here before the actual service implementation runs."
     },
     "Server": {
       "title": "Server",
       "body": "This is the real server-side implementation of the **gRPC service**. **Business logic** runs here and produces the response message.",
-      "more": "This layer owns the actual **application behavior**. By the time execution reaches here, transport details such as **HTTP/2 framing** and **protobuf decoding** have already been handled, so the service can focus on using request fields and returning a typed response. In a real system, this is where **domain logic**, database access, downstream service calls, and error mapping to **gRPC status codes** would typically happen."
+      "more": "This layer owns the actual **application behavior**. By the time execution reaches here, transport details such as **HTTP/2 framing** and **protobuf decoding** have already been handled, so the service can focus on using request fields and returning a typed response. In a real system, this is where **domain logic**, database access, downstream service calls, and error mapping to **gRPC status codes** would typically happen. Success or failure is primarily conveyed by the final gRPC status on the call, not by an application-level `ok` field unless the API defines one."
     },
     "Proto Definition": {
       "title": "Proto Definition",
@@ -64,7 +64,7 @@
     "requestMessage": "Request Message",
     "responseMessage": "Response Message",
     "stdoutToCaller": "stdout -> caller",
-    "runCommandRequest": "RunCommand(request)",
+    "runCommandRequest": "client.RunCommand(request)",
     "requestCommand": "request.command",
     "decodeProtobufRequest": "Decode protobuf request",
     "requestMessageToService": "Request Message -> service",
@@ -73,15 +73,15 @@
     "method": ":method",
     "post": "POST",
     "path": ":path",
-    "runCommandPath": "\"/CommandService/RunCommand\"",
+    "runCommandPath": "\"/demo.CommandService/RunCommand\"",
     "contentType": "content-type",
     "grpcContentType": "\"application/grpc\"",
     "data": "DATA",
     "trailers": "TRAILERS",
     "grpcStatus": "grpc-status",
     "grpcStatusOk": "0",
-    "requestPayloadHint": "[length-prefixed protobuf RunCommandRequest]",
-    "responsePayloadHint": "[length-prefixed protobuf RunCommandResponse]",
+    "requestPayloadHint": "[gRPC message: 1-byte compression flag + 4-byte length + RunCommandRequest protobuf bytes]",
+    "responsePayloadHint": "[gRPC message: 1-byte compression flag + 4-byte length + RunCommandResponse protobuf bytes]",
     "serviceCommandService": "service CommandService",
     "rpcSignature": "rpc RunCommand(RunCommandRequest) returns (RunCommandResponse);",
     "messageRunCommandRequest": "message RunCommandRequest",
