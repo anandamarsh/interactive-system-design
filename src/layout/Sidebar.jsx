@@ -1,5 +1,6 @@
 import { NavLink } from 'react-router-dom'
 import { useAppTheme } from '../theme/AppThemeContext'
+import { chapters, topics } from '../registry/topics'
 
 export default function Sidebar({ isOpen, onClose }) {
   const { themeName } = useAppTheme()
@@ -41,24 +42,41 @@ ${isOpen ? 'translate-x-0' : '-translate-x-full'}
 
         {/* Navigation */}
         <nav className="flex-1 overflow-y-auto p-3">
-          <NavLink
-            to="/topic/rpc"
-            onClick={onClose}
-            className={({ isActive }) => `
-              flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-colors
-              ${isActive
-                ? themeName === 'dark'
-                  ? 'bg-blue-600 text-white font-medium'
-                  : 'bg-blue-50 text-blue-700 font-medium border border-blue-100'
-                : themeName === 'dark'
-                  ? 'text-slate-300 hover:bg-slate-800 hover:text-white'
-                  : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'
-              }
-            `}
-          >
-            <span className="w-1.5 h-1.5 rounded-full bg-green-400 flex-shrink-0" />
-            RPC (Remote Procedure Call)
-          </NavLink>
+          {Object.entries(chapters).map(([chapterName, chapter]) => (
+            <div key={chapterName} className="mb-5">
+              <div className={`px-3 pb-2 text-[11px] font-semibold uppercase tracking-[0.22em] ${themeName === 'dark' ? 'text-slate-500' : 'text-slate-400'}`}>
+                {chapterName}
+              </div>
+              <div className="space-y-1">
+                {chapter.topicIds.map((topicId) => {
+                  const topic = topics.find((entry) => entry.id === topicId)
+                  if (!topic) return null
+
+                  return (
+                    <NavLink
+                      key={topic.id}
+                      to={`/topic/${topic.id}`}
+                      onClick={onClose}
+                      className={({ isActive }) => `
+                        flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-colors
+                        ${isActive
+                          ? themeName === 'dark'
+                            ? 'bg-blue-600 text-white font-medium'
+                            : 'bg-blue-50 text-blue-700 font-medium border border-blue-100'
+                          : themeName === 'dark'
+                            ? 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                            : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'
+                        }
+                      `}
+                    >
+                      <span className="w-1.5 h-1.5 rounded-full bg-green-400 flex-shrink-0" />
+                      {topic.title}
+                    </NavLink>
+                  )
+                })}
+              </div>
+            </div>
+          ))}
         </nav>
       </aside>
     </>
