@@ -11,6 +11,7 @@ const COMMANDS = {
 }
 
 const DEFAULT_ZOOM = 0.86
+const MOBILE_BREAKPOINT_PX = 768
 const STEP_MS = 1100
 const REMOTE_PROC_PAUSE_MS = 2000
 const REMOTE_PROC_RECEIVE_BEEP_MS = 220
@@ -40,6 +41,7 @@ const BOX_TITLES = {
   server: LAYER_INFO.Server.title,
   protoDefinition: LAYER_INFO['Proto Definition'].title,
 }
+const MOBILE_COMMANDS = ['ls', 'pwd', 'whoami', 'date', 'uname -a']
 const THEMES = {
   dark: {
     shellBg: '#0a1320',
@@ -322,18 +324,24 @@ const STEP_ORDER = [
 export default function RpcDemo() {
   const [command, setCommand] = useState('')
   const { themeName } = useAppTheme()
+  const [viewportWidth, setViewportWidth] = useState(() => window.innerWidth)
+  const [isMobile, setIsMobile] = useState(() => window.innerWidth < MOBILE_BREAKPOINT_PX)
   const [boxes, setBoxes] = useState(INITIAL_BOXES)
+  const [minimizedBoxes, setMinimizedBoxes] = useState({})
   const [activeTarget, setActiveTarget] = useState(null)
   const [isRunning, setIsRunning] = useState(false)
   const [isRemoteProcessing, setIsRemoteProcessing] = useState(false)
   const [infoLayer, setInfoLayer] = useState(null)
   const [infoAnchor, setInfoAnchor] = useState(null)
   const [expandedLayer, setExpandedLayer] = useState(null)
-  const [isGuideOpen, setIsGuideOpen] = useState(true)
+  const [mobileTerminalSelection, setMobileTerminalSelection] = useState({ sourceId: 1, infoKey: 'Client' })
+  const [mobileTerminalTab, setMobileTerminalTab] = useState('messages')
+  const [isGuideOpen, setIsGuideOpen] = useState(() => window.innerWidth >= MOBILE_BREAKPOINT_PX)
   const [isDiscussionOpen, setIsDiscussionOpen] = useState(false)
   const [guideWidth, setGuideWidth] = useState(460)
   const [revealedBoxes, setRevealedBoxes] = useState([1])
   const [revealedArrows, setRevealedArrows] = useState([])
+  const [isProtoMinimized, setIsProtoMinimized] = useState(false)
   const [pan, setPan] = useState({ x: 0, y: 0 })
   const [isPanning, setIsPanning] = useState(false)
   const timersRef = useRef([])
@@ -342,6 +350,20 @@ export default function RpcDemo() {
   const beepAudioRef = useRef(null)
   const networkAudioRef = useRef(null)
   const typingAudioRef = useRef(null)
+
+  useEffect(() => {
+    function handleResize() {
+      setViewportWidth(window.innerWidth)
+      setIsMobile(window.innerWidth < MOBILE_BREAKPOINT_PX)
+    }
+
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
+
+  useEffect(() => {
+    if (isMobile) setIsGuideOpen(false)
+  }, [isMobile])
 
   useEffect(() => {
     const beepAudio = new Audio('/audio/beep.mp3')
@@ -417,11 +439,18 @@ export default function RpcDemo() {
     setIsRemoteProcessing(false)
   }
 
-  function handleRun(event) {
-    event.preventDefault()
-    const trimmed = command.trim()
+  function handleBoxToggle(boxId) {
+    setMinimizedBoxes((current) => ({
+      ...current,
+      [boxId]: !current[boxId],
+    }))
+  }
+
+  function runCommand(nextCommand) {
+    const trimmed = nextCommand.trim()
     if (!COMMANDS[trimmed] || isRunning) return
 
+    setCommand(trimmed)
     clearTimers(timersRef)
     setIsRemoteProcessing(false)
     setBoxes({
@@ -477,10 +506,72 @@ export default function RpcDemo() {
     })
   }
 
-  const zoom = DEFAULT_ZOOM
+  function handleRun(event) {
+    event.preventDefault()
+    runCommand(command)
+  }
+
+  const zoom = isMobile ? Math.min((viewportWidth - 24) / 428, 1) : DEFAULT_ZOOM
   const theme = THEMES[themeName]
   const networkForwardActive = activeTarget === 'network-forward'
   const networkReturnActive = activeTarget === 'network-return'
+  const mobileTerminalLayer = mobileTerminalSelection
+    ? mobileTerminalSelection.sourceId === 'proto'
+      ? buildProtoExpandedLayer()
+      : buildExpandedLayer(boxes, mobileTerminalSelection.sourceId, mobileTerminalSelection.infoKey)
+    : null
+  const stageLayout = isMobile
+    ? {
+        width: '26.75rem',
+        height: '21rem',
+        columns: '12rem 2.75rem 10.25rem',
+        rows: '1rem auto 2.75rem auto 2.5rem auto 4rem',
+        gapX: '0.875rem',
+        gapY: '0.2rem',
+      }
+    : {
+        width: '1500px',
+        height: '860px',
+        columns: '1fr 260px 1fr',
+        rows: '1fr 1fr 1fr auto',
+        gapX: '2rem',
+        gapY: '1.25rem',
+      }
+  const compactBoxes = isMobile
+  const stageSlots = isMobile
+    ? {
+        labelRow: '1',
+        leftTop: '2',
+        leftMid: '4',
+        leftBottom: '6',
+        rightTop: '2',
+        rightMid: '4',
+        rightBottom: '6',
+        leftArrowTop: '3',
+        leftArrowBottom: '5',
+        rightArrowTop: '3',
+        rightArrowBottom: '5',
+        protoRow: '7',
+        protoCol: '1 / span 3',
+        networkRow: '6 / span 2',
+        networkCol: '1 / span 3',
+      }
+    : {
+        leftTop: '1',
+        leftMid: '2',
+        leftBottom: '3',
+        rightTop: '1',
+        rightMid: '2',
+        rightBottom: '3',
+        leftArrowTop: '1',
+        leftArrowBottom: '2',
+        rightArrowTop: '1',
+        rightArrowBottom: '2',
+        protoRow: '3',
+        protoCol: '2',
+        networkRow: '3',
+        networkCol: '2',
+      }
 
   function handlePanStart(event) {
     if (event.target.closest('input, button')) return
@@ -505,21 +596,33 @@ export default function RpcDemo() {
     setIsPanning(false)
   }
 
+  function handleLayerOpen(layer) {
+    if (isMobile) {
+      setMobileTerminalSelection({ sourceId: layer.sourceId, infoKey: layer.infoKey })
+      setMobileTerminalTab('messages')
+      return
+    }
+
+    setExpandedLayer(layer)
+  }
+
   return (
     <div className="rpc-stage-shell relative flex h-full w-full overflow-hidden border" style={{ backgroundColor: theme.shellBg, borderColor: theme.shellBorder }}>
-      {isGuideOpen && (
-        <GuidePanel
-          theme={theme}
-          width={guideWidth}
-          onResizeStart={() => {
-            guideResizeRef.current = true
-          }}
-          onClose={() => setIsGuideOpen(false)}
-        />
+      {isMobile ? (
+        <MobileGuideSheet open={isGuideOpen} theme={theme} onClose={() => setIsGuideOpen(false)} />
+      ) : isGuideOpen && (
+          <GuidePanel
+            theme={theme}
+            width={guideWidth}
+            onResizeStart={() => {
+              guideResizeRef.current = true
+            }}
+            onClose={() => setIsGuideOpen(false)}
+          />
       )}
 
       <div className="relative min-w-0 flex-1 overflow-hidden">
-        {!isGuideOpen && (
+        {!isGuideOpen && !isMobile && (
           <button
             type="button"
             onClick={() => setIsGuideOpen(true)}
@@ -530,22 +633,45 @@ export default function RpcDemo() {
             <InfoIcon />
           </button>
         )}
-        <div className="h-full overflow-hidden" style={{ backgroundColor: theme.shellBg }}>
+        <div className={`h-full overflow-hidden ${isMobile ? 'flex flex-col' : ''}`} style={{ backgroundColor: theme.shellBg }}>
+          {isMobile && (
+            <MobileTerminal
+              layer={mobileTerminalLayer}
+              activeTab={mobileTerminalTab}
+              theme={theme}
+              onTabChange={setMobileTerminalTab}
+              command={command}
+              onCommandRun={runCommand}
+              isRunning={isRunning}
+            />
+          )}
+          {isMobile && <div className="mx-0 border-b" style={{ borderBottomColor: theme.panelBorder }} />}
           <div
-            className={`flex min-h-full items-center justify-center ${isPanning ? 'cursor-grabbing' : 'cursor-grab'}`}
-            onPointerDown={handlePanStart}
-            onPointerMove={handlePanMove}
-            onPointerUp={handlePanEnd}
-            onPointerLeave={handlePanEnd}
+            className={`flex justify-center ${isMobile ? 'shrink-0 items-end pb-16' : 'min-h-full items-center'} ${!isMobile && isPanning ? 'cursor-grabbing' : !isMobile ? 'cursor-grab' : ''}`}
+            onPointerDown={isMobile ? undefined : handlePanStart}
+            onPointerMove={isMobile ? undefined : handlePanMove}
+            onPointerUp={isMobile ? undefined : handlePanEnd}
+            onPointerLeave={isMobile ? undefined : handlePanEnd}
           >
             <div
-              className="grid h-[860px] w-[1500px] origin-center grid-cols-[1fr_260px_1fr] grid-rows-[1fr_1fr_1fr_auto] gap-x-8 gap-y-5 transition-transform duration-300 will-change-transform"
-              style={{ transform: `translate3d(${Math.round(pan.x)}px, ${Math.round(pan.y)}px, 0) scale(${zoom})` }}
+              className="grid origin-center transition-transform duration-300 will-change-transform"
+              style={{
+                width: stageLayout.width,
+                height: stageLayout.height,
+                gridTemplateColumns: stageLayout.columns,
+                gridTemplateRows: stageLayout.rows,
+                columnGap: stageLayout.gapX,
+                rowGap: stageLayout.gapY,
+                transform: `translate3d(${isMobile ? 0 : Math.round(pan.x)}px, ${isMobile ? 0 : Math.round(pan.y)}px, 0) scale(${zoom})`,
+              }}
             >
             <StageBox
               number={1}
-              row="1"
+              row={stageSlots.leftTop}
               col="1"
+              compact={compactBoxes || Boolean(minimizedBoxes[1])}
+              mobileMode={isMobile}
+              selected={mobileTerminalLayer?.sourceId === 1}
               active={activeTarget === 1}
               enabled
               mainTokens={boxes[1].main}
@@ -558,17 +684,21 @@ export default function RpcDemo() {
               onSubmit={handleRun}
               disabled={isRunning}
               theme={theme}
+              onToggleMinimize={() => handleBoxToggle(1)}
               onInfoOpen={(layerKey, anchor) => {
                 setInfoLayer(layerKey)
                 setInfoAnchor(anchor)
               }}
-              onExpandOpen={() => setExpandedLayer(buildExpandedLayer(boxes, 1, 'Client'))}
+              onExpandOpen={() => handleLayerOpen(buildExpandedLayer(boxes, 1, 'Client'))}
             />
 
             <SplitStageBox
               number={2}
-              row="2"
+              row={stageSlots.leftMid}
               col="1"
+              compact={compactBoxes || Boolean(minimizedBoxes[2])}
+              mobileMode={isMobile}
+              selected={mobileTerminalLayer?.sourceId === 2}
               active={activeTarget === 2}
               enabled={revealedBoxes.includes(2)}
               leftTokens={boxes[2].left}
@@ -577,17 +707,21 @@ export default function RpcDemo() {
               status={boxes[2].status}
               infoKey="Client Stub"
               theme={theme}
+              onToggleMinimize={() => handleBoxToggle(2)}
               onInfoOpen={(layerKey, anchor) => {
                 setInfoLayer(layerKey)
                 setInfoAnchor(anchor)
               }}
-              onExpandOpen={() => setExpandedLayer(buildExpandedLayer(boxes, 2, 'Client Stub'))}
+              onExpandOpen={() => handleLayerOpen(buildExpandedLayer(boxes, 2, 'Client Stub'))}
             />
 
             <SplitStageBox
               number={3}
-              row="3"
+              row={stageSlots.leftBottom}
               col="1"
+              compact={compactBoxes || Boolean(minimizedBoxes[3])}
+              mobileMode={isMobile}
+              selected={mobileTerminalLayer?.sourceId === 3}
               active={activeTarget === 3}
               enabled={revealedBoxes.includes(3)}
               leftTokens={boxes[3].left}
@@ -596,17 +730,21 @@ export default function RpcDemo() {
               status={boxes[3].status}
               infoKey="RPC Runtime"
               theme={theme}
+              onToggleMinimize={() => handleBoxToggle(3)}
               onInfoOpen={(layerKey, anchor) => {
                 setInfoLayer(layerKey)
                 setInfoAnchor(anchor)
               }}
-              onExpandOpen={() => setExpandedLayer(buildExpandedLayer(boxes, 3, 'RPC Runtime'))}
+              onExpandOpen={() => handleLayerOpen(buildExpandedLayer(boxes, 3, 'RPC Runtime'))}
             />
 
             <StageBox
               number={6}
-              row="1"
+              row={stageSlots.rightTop}
               col="3"
+              compact={compactBoxes || Boolean(minimizedBoxes[6])}
+              mobileMode={isMobile}
+              selected={mobileTerminalLayer?.sourceId === 6}
               active={activeTarget === 6}
               enabled={revealedBoxes.includes(6)}
               mainTokens={boxes[6].main}
@@ -615,17 +753,21 @@ export default function RpcDemo() {
               infoKey="Server"
               showProcessingIndicator={isRemoteProcessing}
               theme={theme}
+              onToggleMinimize={() => handleBoxToggle(6)}
               onInfoOpen={(layerKey, anchor) => {
                 setInfoLayer(layerKey)
                 setInfoAnchor(anchor)
               }}
-              onExpandOpen={() => setExpandedLayer(buildExpandedLayer(boxes, 6, 'Server'))}
+              onExpandOpen={() => handleLayerOpen(buildExpandedLayer(boxes, 6, 'Server'))}
             />
 
             <SplitStageBox
               number={5}
-              row="2"
+              row={stageSlots.rightMid}
               col="3"
+              compact={compactBoxes || Boolean(minimizedBoxes[5])}
+              mobileMode={isMobile}
+              selected={mobileTerminalLayer?.sourceId === 5}
               active={activeTarget === 5}
               enabled={revealedBoxes.includes(5)}
               leftTokens={boxes[5].left}
@@ -634,17 +776,21 @@ export default function RpcDemo() {
               status={boxes[5].status}
               infoKey="Server Stub"
               theme={theme}
+              onToggleMinimize={() => handleBoxToggle(5)}
               onInfoOpen={(layerKey, anchor) => {
                 setInfoLayer(layerKey)
                 setInfoAnchor(anchor)
               }}
-              onExpandOpen={() => setExpandedLayer(buildExpandedLayer(boxes, 5, 'Server Stub'))}
+              onExpandOpen={() => handleLayerOpen(buildExpandedLayer(boxes, 5, 'Server Stub'))}
             />
 
             <SplitStageBox
               number={4}
-              row="3"
+              row={stageSlots.rightBottom}
               col="3"
+              compact={compactBoxes || Boolean(minimizedBoxes[4])}
+              mobileMode={isMobile}
+              selected={mobileTerminalLayer?.sourceId === 4}
               active={activeTarget === 4}
               enabled={revealedBoxes.includes(4)}
               leftTokens={boxes[4].left}
@@ -653,45 +799,55 @@ export default function RpcDemo() {
               status={boxes[4].status}
               infoKey="RPC Runtime"
               theme={theme}
+              onToggleMinimize={() => handleBoxToggle(4)}
               onInfoOpen={(layerKey, anchor) => {
                 setInfoLayer(layerKey)
                 setInfoAnchor(anchor)
               }}
-              onExpandOpen={() => setExpandedLayer(buildExpandedLayer(boxes, 4, 'RPC Runtime'))}
+              onExpandOpen={() => handleLayerOpen(buildExpandedLayer(boxes, 4, 'RPC Runtime'))}
             />
 
-            <VerticalArrow id="arrow_1" direction="down" row="1" col="1" lane="left" visible={revealedArrows.includes('1-2')} active={activeTarget === 2} start="34%" end="7px" height="58px" theme={theme} />
-            <VerticalArrow id="arrow_2" direction="down" row="2" col="1" lane="left" visible={revealedArrows.includes('2-3')} active={activeTarget === 3} start="34%" end="7px" height="58px" theme={theme} />
-            <VerticalArrow id="arrow_3" direction="up" row="1" col="1" lane="right" visible={revealedArrows.includes('2-1')} active={activeTarget === 1} start="66%" end="7px" height="58px" theme={theme} />
-            <VerticalArrow id="arrow_4" direction="up" row="2" col="3" lane="left" visible={revealedArrows.includes('4-5')} active={activeTarget === 5} start="34%" end="7px" height="58px" theme={theme} />
-            <VerticalArrow id="arrow_5" direction="up" row="1" col="3" lane="left" visible={revealedArrows.includes('5-6')} active={activeTarget === 6} start="34%" end="7px" height="58px" theme={theme} />
-            <VerticalArrow id="arrow_6" direction="down" row="1" col="3" lane="right" visible={revealedArrows.includes('6-5')} active={activeTarget === 5} start="66%" end="7px" height="58px" theme={theme} />
-            <VerticalArrow id="arrow_7" direction="down" row="2" col="3" lane="right" visible={revealedArrows.includes('5-4')} active={activeTarget === 4} start="66%" end="7px" height="58px" theme={theme} />
-            <VerticalArrow id="arrow_8" direction="up" row="2" col="1" lane="right" visible={revealedArrows.includes('3-2')} active={activeTarget === 2} start="66%" end="7px" height="58px" theme={theme} />
+            <VerticalArrow id="arrow_1" direction="down" row={stageSlots.leftArrowTop} col="1" lane="left" visible={revealedArrows.includes('1-2')} active={activeTarget === 2} start="34%" end="7px" height={isMobile ? '40px' : '58px'} mobileMode={isMobile} theme={theme} />
+            <VerticalArrow id="arrow_2" direction="down" row={stageSlots.leftArrowBottom} col="1" lane="left" visible={revealedArrows.includes('2-3')} active={activeTarget === 3} start="34%" end="7px" height={isMobile ? '40px' : '58px'} mobileMode={isMobile} theme={theme} />
+            <VerticalArrow id="arrow_3" direction="up" row={stageSlots.leftArrowTop} col="1" lane="right" visible={revealedArrows.includes('2-1')} active={activeTarget === 1} start="66%" end="7px" height={isMobile ? '40px' : '58px'} mobileMode={isMobile} theme={theme} />
+            <VerticalArrow id="arrow_4" direction="up" row={stageSlots.rightArrowBottom} col="3" lane="left" visible={revealedArrows.includes('4-5')} active={activeTarget === 5} start="26%" end="7px" height={isMobile ? '40px' : '58px'} mobileMode={isMobile} theme={theme} />
+            <VerticalArrow id="arrow_5" direction="up" row={stageSlots.rightArrowTop} col="3" lane="left" visible={revealedArrows.includes('5-6')} active={activeTarget === 6} start="26%" end="7px" height={isMobile ? '40px' : '58px'} mobileMode={isMobile} theme={theme} />
+            <VerticalArrow id="arrow_6" direction="down" row={stageSlots.rightArrowTop} col="3" lane="right" visible={revealedArrows.includes('6-5')} active={activeTarget === 5} start="64%" end="7px" height={isMobile ? '40px' : '58px'} mobileMode={isMobile} theme={theme} />
+            <VerticalArrow id="arrow_7" direction="down" row={stageSlots.rightArrowBottom} col="3" lane="right" visible={revealedArrows.includes('5-4')} active={activeTarget === 4} start="66%" end="7px" height={isMobile ? '40px' : '58px'} mobileMode={isMobile} theme={theme} />
+            <VerticalArrow id="arrow_8" direction="up" row={stageSlots.leftArrowBottom} col="1" lane="right" visible={revealedArrows.includes('3-2')} active={activeTarget === 2} start="66%" end="7px" height={isMobile ? '40px' : '58px'} mobileMode={isMobile} theme={theme} />
 
             <NetworkBridge
-              row="3"
-              col="2"
+              row={stageSlots.networkRow}
+              col={stageSlots.networkCol}
               showForward={revealedArrows.includes('3-4')}
               showReturn={revealedArrows.includes('4-3')}
               forwardActive={networkForwardActive}
               returnActive={networkReturnActive}
+              mobileMode={isMobile}
               theme={theme}
             />
 
-            <SideLabel row="4" col="1" text={UI_TEXT.local} theme={theme} />
+            {isMobile
+              ? <SideLabel row={stageSlots.labelRow} col="1" text={UI_TEXT.local} theme={theme} mobileMode />
+              : <SideLabel row="4" col="1" text={UI_TEXT.local} theme={theme} />}
             <ProtoPanel
-              row="3"
-              col="2"
+              row={stageSlots.protoRow}
+              col={stageSlots.protoCol}
               visible={revealedArrows.includes('3-4') || revealedArrows.includes('4-3')}
+              compact={compactBoxes || isProtoMinimized}
+              mobileMode={isMobile}
+              selected={mobileTerminalLayer?.sourceId === 'proto'}
               theme={theme}
+              onToggleMinimize={() => setIsProtoMinimized((current) => !current)}
               onInfoOpen={(layerKey, anchor) => {
                 setInfoLayer(layerKey)
                 setInfoAnchor(anchor)
               }}
-              onExpandOpen={() => setExpandedLayer(buildProtoExpandedLayer())}
+              onExpandOpen={() => handleLayerOpen(buildProtoExpandedLayer())}
             />
-            <SideLabel row="4" col="3" text={UI_TEXT.remote} theme={theme} />
+            {isMobile
+              ? <SideLabel row={stageSlots.labelRow} col="3" text={UI_TEXT.remote} theme={theme} mobileMode />
+              : <SideLabel row="4" col="3" text={UI_TEXT.remote} theme={theme} />}
             </div>
           </div>
         </div>
@@ -712,13 +868,27 @@ export default function RpcDemo() {
         <LayerExpandModal layer={expandedLayer} theme={theme} onClose={() => setExpandedLayer(null)} />
       )}
 
+      {isMobile && !isDiscussionOpen && (
+        <div className="pointer-events-none absolute bottom-4 left-4 z-40">
+          <button
+            type="button"
+            onClick={() => setIsGuideOpen(true)}
+            className="pointer-events-auto flex h-14 w-14 items-center justify-center transition-transform hover:-translate-y-0.5"
+            style={{ color: theme.accent, backgroundColor: 'transparent' }}
+            aria-label={UI_TEXT.openGuide}
+          >
+            <InfoIcon size={28} />
+          </button>
+        </div>
+      )}
+
       {!isDiscussionOpen && (
         <div className="pointer-events-none absolute bottom-4 right-4 z-40">
           <button
             type="button"
             onClick={() => setIsDiscussionOpen(true)}
-            className="pointer-events-auto flex h-12 w-12 items-center justify-center rounded-full border shadow-[0_18px_40px_rgba(2,12,27,0.18)] transition-transform hover:-translate-y-0.5"
-            style={{ borderColor: theme.panelBorder, backgroundColor: theme.panelBg, color: theme.accent }}
+            className="pointer-events-auto flex h-12 w-12 items-center justify-center transition-transform hover:-translate-y-0.5"
+            style={{ backgroundColor: 'transparent', color: theme.accent }}
             aria-label={DISCUSSION_TEXT.buttonLabel}
           >
             <DiscussionIcon />
@@ -729,6 +899,7 @@ export default function RpcDemo() {
       <div className="pointer-events-none absolute bottom-0 right-0 z-30 pl-6 pt-6">
         <DiscussionSheet
           open={isDiscussionOpen}
+          mobileMode={isMobile}
           theme={theme}
           themeName={themeName}
           onClose={() => setIsDiscussionOpen(false)}
@@ -742,6 +913,9 @@ function StageBox({
   number,
   row,
   col,
+  compact = false,
+  mobileMode = false,
+  selected = false,
   active,
   enabled,
   mainTokens,
@@ -755,29 +929,53 @@ function StageBox({
   showProcessingIndicator = false,
   infoKey,
   theme,
+  onToggleMinimize,
   onInfoOpen,
   onExpandOpen,
 }) {
+  const clientCommand = isInput ? extractClientCommand(mainTokens) : ''
+  const clientHasOutput = isInput ? mainTokens?.some((token) => token.kind === 'output') : false
+  const clientDisplayTokens = isInput
+    ? clientCommand
+      ? [
+          { kind: 'prompt', value: '$ ' },
+          { kind: 'command', value: clientCommand },
+          ...(mainTokens?.[0]?.kind === 'command' ? mainTokens.slice(1) : mainTokens),
+        ]
+      : [{ kind: 'prompt', value: '$ ' }]
+    : mainTokens
+
   return (
     <section
-      className={stageClass(enabled, active)}
+      className={stageClass(enabled, active, compact)}
       style={{
         gridRow: row,
         gridColumn: col,
+        alignSelf: compact ? 'end' : 'stretch',
+        justifySelf: col === '3' ? 'end' : 'start',
+        width: compact ? (mobileMode ? '12rem' : '15rem') : '100%',
         ...panelStyle(theme, enabled, active),
+        ...(selected && mobileMode ? selectedCompactStyle(theme) : {}),
       }}
     >
       <span className="absolute -left-7 top-3 text-3xl font-semibold" style={{ color: enabled ? theme.numberEnabled : theme.numberDisabled }}>{number}.</span>
       {showProcessingIndicator && (
-        <span className="pointer-events-none absolute right-4 top-4 z-10 animate-[spin_1.2s_linear_infinite]" style={{ color: theme.accent }}>
-          <GearIcon />
+        <span className={`pointer-events-none absolute z-10 animate-[spin_1.2s_linear_infinite] ${mobileMode ? 'right-[calc(1rem-8px)] top-[calc(1rem-8px)]' : 'right-4 top-4'}`} style={{ color: theme.accent }}>
+          <GearIcon size={mobileMode ? 24 : 40} />
         </span>
       )}
-      <div className="flex-1 overflow-hidden p-4 sm:p-5">
+      {!compact && (
+      <div className="flex-1 overflow-hidden p-4 pt-12 sm:p-5 sm:pt-12">
         {isInput ? (
           <div className="flex h-full flex-col justify-between">
             <div className="min-h-0 overflow-hidden font-mono text-[clamp(0.95rem,1.18vw,1.08rem)] leading-6">
-              <TokenRenderer tokens={mainTokens} theme={theme} />
+              <TokenRenderer tokens={clientDisplayTokens} theme={theme} />
+              {!clientCommand && !disabled && <PromptCursor theme={theme} />}
+              {disabled && clientCommand && !clientHasOutput && (
+                <div className="mt-1" style={{ color: theme.dim }}>
+                  <AsciiSpinner theme={theme} />
+                </div>
+              )}
             </div>
 
             <form onSubmit={onSubmit} className="mt-4">
@@ -811,8 +1009,9 @@ function StageBox({
           </div>
         )}
       </div>
+      )}
 
-      <FooterBar enabled={enabled} footerLeft={number === 1 ? BOX_TITLES.client : footerLeft} status={status} infoKey={infoKey} theme={theme} onInfoOpen={onInfoOpen} onExpandOpen={onExpandOpen} />
+      <FooterBar compact={compact} mobileMode={mobileMode} selected={selected} enabled={enabled} footerLeft={number === 1 ? BOX_TITLES.client : footerLeft} status={status} infoKey={infoKey} theme={theme} onInfoOpen={onInfoOpen} onExpandOpen={onExpandOpen} onToggleMinimize={onToggleMinimize} />
     </section>
   )
 }
@@ -893,10 +1092,72 @@ function GuidePanel({ theme, width, onResizeStart, onClose }) {
   )
 }
 
-function DiscussionSheet({ open, theme, themeName, onClose }) {
+function MobileGuideSheet({ open, theme, onClose }) {
+  return (
+    <div
+      className={`absolute inset-0 z-50 overflow-hidden transition-all duration-300 ${open ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0'}`}
+      style={{ backgroundColor: theme.modalBg }}
+    >
+      <div
+        className={`flex h-full flex-col transition-transform duration-300 ${open ? 'translate-y-0' : 'translate-y-full'}`}
+      >
+        <div className="flex items-center justify-between border-b px-5 py-4" style={{ borderBottomColor: theme.panelBorder }}>
+          <h2 className="text-lg font-semibold" style={{ color: theme.textStrong }}>{GUIDE_TEXT.title}</h2>
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex h-9 w-9 items-center justify-center transition-colors"
+            style={{ color: theme.accent, backgroundColor: 'transparent' }}
+            aria-label={UI_TEXT.closeGuide}
+          >
+            <CloseIcon />
+          </button>
+        </div>
+        <div className="flex-1 overflow-y-auto px-5 py-5">
+          <div className="overflow-hidden border" style={{ borderColor: theme.panelBorder, backgroundColor: theme.panelBg }}>
+            <div className="aspect-video w-full">
+              <iframe
+                className="h-full w-full"
+                src={GUIDE_TEXT.videoEmbedUrl}
+                title={GUIDE_TEXT.videoTitle}
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                allowFullScreen
+              />
+            </div>
+          </div>
+
+          <div className="mt-6">
+            <div className="space-y-4 text-[0.95rem] leading-7" style={{ color: theme.text }}>
+              {GUIDE_TEXT.paragraphs.map((paragraph, index) => (
+                <p key={`mobile-guide-paragraph-${index}`}>
+                  <MarkdownText text={paragraph} theme={theme} />
+                </p>
+              ))}
+            </div>
+          </div>
+
+          <div className="mt-6 border-t pt-4 text-right" style={{ borderTopColor: theme.panelBorder }}>
+            <span className="text-sm font-semibold" style={{ color: theme.textStrong }}>{GUIDE_TEXT.referenceLabel}: </span>
+            <a
+              href={GUIDE_TEXT.referenceUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="text-sm underline underline-offset-4"
+              style={{ color: theme.accentStrong }}
+            >
+              {GUIDE_TEXT.referenceTitle}
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function DiscussionSheet({ open, mobileMode = false, theme, themeName, onClose }) {
   return (
     <section
-      className={`w-[min(44rem,calc(100vw-2rem))] overflow-hidden rounded-tl-[6px] border-[1px] border-b-0 border-r-0 transition-all duration-300 ${open ? 'pointer-events-auto translate-y-0 opacity-100' : 'pointer-events-none translate-y-[110%] opacity-0'}`}
+      className={`${mobileMode ? 'w-screen max-w-none' : 'w-[min(44rem,calc(100vw-2rem))]'} overflow-hidden rounded-tl-[6px] border-[1px] border-b-0 border-r-0 transition-all duration-300 ${open ? 'pointer-events-auto translate-y-0 opacity-100' : 'pointer-events-none translate-y-[110%] opacity-0'}`}
       style={{
         borderColor: theme.panelBorder,
         backgroundColor: theme.modalBg,
@@ -973,6 +1234,9 @@ function SplitStageBox({
   number,
   row,
   col,
+  compact = false,
+  mobileMode = false,
+  selected = false,
   active,
   enabled,
   leftTokens,
@@ -981,60 +1245,79 @@ function SplitStageBox({
   status,
   infoKey,
   theme,
+  onToggleMinimize,
   onInfoOpen,
   onExpandOpen,
 }) {
   return (
     <section
-      className={stageClass(enabled, active)}
+      className={stageClass(enabled, active, compact)}
       style={{
         gridRow: row,
         gridColumn: col,
+        alignSelf: compact ? 'end' : 'stretch',
+        justifySelf: col === '3' ? 'end' : 'start',
+        width: compact ? (mobileMode ? '12rem' : '15rem') : '100%',
         ...panelStyle(theme, enabled, active),
+        ...(selected && mobileMode ? selectedCompactStyle(theme) : {}),
       }}
     >
       <span className="absolute -left-7 top-3 text-3xl font-semibold" style={{ color: enabled ? theme.numberEnabled : theme.numberDisabled }}>{number}.</span>
-
+      {!compact && (
       <div className="flex flex-1 overflow-hidden">
-        <div className="flex-1 overflow-hidden border-r p-4 sm:p-5" style={{ borderRightColor: rightTokens?.length ? theme.panelBorder : 'transparent' }}>
+        <div className="flex-1 overflow-hidden border-r p-4 pt-12 sm:p-5 sm:pt-12" style={{ borderRightColor: rightTokens?.length ? theme.panelBorder : 'transparent' }}>
           <div className={`h-full overflow-hidden font-mono text-[clamp(0.92rem,1.12vw,1.02rem)] leading-6 transition-opacity duration-500 ${enabled ? 'opacity-100' : 'opacity-0'}`}>
             <TokenRenderer tokens={leftTokens} theme={theme} />
           </div>
         </div>
-        <div className="flex-1 overflow-hidden p-4 sm:p-5">
+        <div className="flex-1 overflow-hidden p-4 pt-12 sm:p-5 sm:pt-12">
           <div className={`h-full overflow-hidden font-mono text-[clamp(0.92rem,1.12vw,1.02rem)] leading-6 transition-opacity duration-500 ${enabled && rightTokens?.length ? 'opacity-100' : 'opacity-0'}`}>
             <TokenRenderer tokens={rightTokens} theme={theme} />
           </div>
         </div>
       </div>
+      )}
 
-      <FooterBar enabled={enabled} footerLeft={footerLeft} status={status} infoKey={infoKey} theme={theme} onInfoOpen={onInfoOpen} onExpandOpen={onExpandOpen} />
+      <FooterBar compact={compact} mobileMode={mobileMode} selected={selected} enabled={enabled} footerLeft={footerLeft} status={status} infoKey={infoKey} theme={theme} onInfoOpen={onInfoOpen} onExpandOpen={onExpandOpen} onToggleMinimize={onToggleMinimize} />
     </section>
   )
 }
 
-function FooterBar({ enabled, footerLeft, status, infoKey, theme, onInfoOpen, onExpandOpen }) {
+function FooterBar({ compact = false, mobileMode = false, selected = false, enabled, footerLeft, status, infoKey, theme, onInfoOpen, onExpandOpen, onToggleMinimize }) {
+  const showStatusLed = status === 'waiting'
+
   return (
-    <div className="flex items-center justify-between border-t px-4 py-2" style={{ borderTopColor: enabled ? theme.footerBorder : theme.footerMutedBorder, color: enabled ? theme.textStrong : theme.panelMutedText }}>
+    <div
+      className={`flex items-center justify-between px-4 py-2 ${compact ? '' : 'border-t'}`}
+      style={{ borderTopColor: enabled ? theme.footerBorder : theme.footerMutedBorder, color: enabled ? theme.textStrong : theme.panelMutedText }}
+      onClick={compact && enabled ? (mobileMode ? onExpandOpen : onToggleMinimize) : undefined}
+    >
       <span className="flex items-center gap-2 text-[clamp(1rem,1.35vw,1.45rem)] font-medium">
-        <InfoButton disabled={!enabled} theme={theme} onClick={(anchor) => onInfoOpen?.(infoKey, anchor)} />
+        <InfoButton disabled={!enabled} theme={theme} selected={selected} onClick={(anchor) => onInfoOpen?.(infoKey, anchor)} />
         <span>{footerLeft}</span>
       </span>
       <span className="flex h-6 w-6 items-center justify-center">
-        {status === 'waiting'
+        {showStatusLed
           ? <StatusLed status={status} />
-          : <ExpandButton disabled={!enabled} theme={theme} onClick={onExpandOpen} />}
+          : !mobileMode && compact
+          ? <ExpandButton disabled={!enabled} theme={theme} onClick={onExpandOpen} />
+          : !mobileMode
+          ? <ExpandButton disabled={!enabled} theme={theme} onClick={onExpandOpen} />
+          : null}
       </span>
     </div>
   )
 }
 
-function InfoButton({ disabled, theme, onClick }) {
+function InfoButton({ disabled, theme, selected = false, onClick }) {
   return (
     <button
       type="button"
       disabled={disabled}
-      onClick={(event) => onClick?.(event.currentTarget.getBoundingClientRect())}
+      onClick={(event) => {
+        event.stopPropagation()
+        onClick?.(event.currentTarget.getBoundingClientRect())
+      }}
       aria-label={UI_TEXT.openLayerInfo}
       data-layer-info-anchor="true"
       className="flex h-6 w-6 items-center justify-center rounded-full transition-colors disabled:text-slate-500"
@@ -1050,7 +1333,10 @@ function ExpandButton({ disabled, theme, onClick }) {
     <button
       type="button"
       disabled={disabled}
-      onClick={onClick}
+      onClick={(event) => {
+        event.stopPropagation()
+        onClick?.()
+      }}
       aria-label={UI_TEXT.expandLayer}
       className="flex h-6 w-6 items-center justify-center rounded-full transition-colors disabled:text-slate-500"
       style={{ color: disabled ? undefined : theme.accent, backgroundColor: 'transparent' }}
@@ -1174,12 +1460,14 @@ function StatusLed({ status }) {
   return <span className="h-3.5 w-3.5 rounded-full bg-amber-300 shadow-[0_0_14px_rgba(252,211,77,0.8)] animate-[rpc-led_1.2s_ease-in-out_infinite]" />
 }
 
-function VerticalArrow({ id, direction, row, col, lane, visible, active, start, end, height, theme }) {
+function VerticalArrow({ id, direction, row, col, lane, visible, active, start, end, height, mobileMode = false, theme }) {
   const isDown = direction === 'down'
   const position = start || (lane === 'left' ? '34%' : '66%')
   const arrowEnd = end || '7px'
-  const arrowHeight = height || '58px'
-  const shaftHeight = isDown ? 'calc(100% - 14px)' : 'calc(100% - 6px)'
+  const arrowHeight = mobileMode ? '100%' : (height || '58px')
+  const shaftHeight = mobileMode
+    ? (isDown ? 'calc(100% - 18px)' : 'calc(100% - 10px)')
+    : (isDown ? 'calc(100% - 14px)' : 'calc(100% - 6px)')
 
   return (
     <div
@@ -1188,10 +1476,10 @@ function VerticalArrow({ id, direction, row, col, lane, visible, active, start, 
       style={{
         gridRow: row,
         gridColumn: col,
-        alignSelf: 'end',
+        alignSelf: mobileMode ? 'stretch' : 'end',
         justifySelf: 'stretch',
         height: arrowHeight,
-        transform: 'translateY(50%)',
+        transform: mobileMode ? 'none' : 'translateY(50%)',
         zIndex: 40,
       }}
     >
@@ -1208,7 +1496,42 @@ function VerticalArrow({ id, direction, row, col, lane, visible, active, start, 
   )
 }
 
-function NetworkBridge({ row, col, showForward, showReturn, forwardActive, returnActive, theme }) {
+function NetworkBridge({ row, col, showForward, showReturn, forwardActive, returnActive, mobileMode = false, theme }) {
+  if (mobileMode) {
+    return (
+      <div className="pointer-events-none relative z-20" style={{ gridRow: row, gridColumn: col }}>
+        {showForward && (
+          <div className="absolute left-[32%] top-[52%] w-[3px]" style={{ height: '34%', backgroundColor: theme.accentStrong, boxShadow: forwardActive ? theme.accentShadow : 'none' }}>
+            <div className="absolute left-1/2 top-full -translate-x-1/2 -translate-y-1/2">
+              <ArrowHead active={forwardActive} theme={theme} />
+            </div>
+          </div>
+        )}
+        {showForward && (
+          <div className="absolute left-[63%] top-[58%] w-[3px]" style={{ height: '34%', backgroundColor: theme.accentStrong, boxShadow: forwardActive ? theme.accentShadow : 'none' }}>
+            <div className="absolute left-1/2 top-0 -translate-x-1/2 -translate-y-1/2 rotate-180">
+              <ArrowHead active={forwardActive} theme={theme} />
+            </div>
+          </div>
+        )}
+        {showReturn && (
+          <div className="absolute left-[37%] top-[58%] w-[3px]" style={{ height: '34%', backgroundColor: theme.accentStrong, boxShadow: returnActive ? theme.accentShadow : 'none' }}>
+            <div className="absolute left-1/2 top-0 -translate-x-1/2 -translate-y-1/2 rotate-180">
+              <ArrowHead active={returnActive} theme={theme} />
+            </div>
+          </div>
+        )}
+        {showReturn && (
+          <div className="absolute left-[68%] top-[52%] w-[3px]" style={{ height: '34%', backgroundColor: theme.accentStrong, boxShadow: returnActive ? theme.accentShadow : 'none' }}>
+            <div className="absolute left-1/2 top-full -translate-x-1/2 -translate-y-1/2">
+              <ArrowHead active={returnActive} theme={theme} />
+            </div>
+          </div>
+        )}
+      </div>
+    )
+  }
+
   return (
     <div className="pointer-events-none relative z-20" style={{ gridRow: row, gridColumn: col }}>
       <div className="absolute left-0 top-[40%] h-[3px] w-full bg-transparent">
@@ -1230,42 +1553,51 @@ function NetworkBridge({ row, col, showForward, showReturn, forwardActive, retur
       </div>
 
       <div className="absolute inset-0 flex items-center justify-center">
-        {(showForward || showReturn) && (
+        {!mobileMode && (showForward || showReturn) && (
           <span className="text-lg font-semibold uppercase tracking-[0.42em]" style={{ color: forwardActive || returnActive ? theme.textStrong : theme.accent }}>
             {UI_TEXT.network}
           </span>
         )}
       </div>
 
-      {showForward && (
+      {!mobileMode && showForward && (
         <span className={`absolute top-[40%] h-3.5 w-3.5 -translate-y-1/2 rounded-full ${forwardActive ? 'left-[22%] animate-[rpc-ping_1.4s_linear_infinite]' : 'left-[70%]'}`} style={{ backgroundColor: forwardActive ? theme.packetActive : theme.packetIdle, boxShadow: forwardActive ? `0 0 14px ${theme.packetActive}` : 'none' }} />
       )}
-      {showReturn && (
+      {!mobileMode && showReturn && (
         <span className={`absolute top-[60%] h-3.5 w-3.5 -translate-y-1/2 rounded-full ${returnActive ? 'left-[70%] animate-[rpc-ping_1.4s_linear_infinite]' : 'left-[22%]'}`} style={{ backgroundColor: returnActive ? theme.packetActive : theme.packetIdle, boxShadow: returnActive ? `0 0 14px ${theme.packetActive}` : 'none' }} />
       )}
     </div>
   )
 }
 
-function SideLabel({ row, col, text, theme }) {
+function SideLabel({ row, col, text, theme, mobileMode = false }) {
   return (
     <div
-      className="flex items-center justify-center text-lg font-semibold uppercase tracking-[0.42em]"
-      style={{ gridRow: row, gridColumn: col, color: theme.accent }}
+      className={mobileMode ? 'flex items-center justify-center text-xs font-medium' : 'flex items-center justify-center text-lg font-semibold uppercase tracking-[0.42em]'}
+      style={{ gridRow: row, gridColumn: col, color: theme.accent, textTransform: mobileMode ? 'none' : undefined }}
     >
       {text}
     </div>
   )
 }
 
-function ProtoPanel({ row, col, visible, theme, onInfoOpen, onExpandOpen }) {
+function ProtoPanel({ row, col, visible, compact = false, mobileMode = false, selected = false, theme, onToggleMinimize, onInfoOpen, onExpandOpen }) {
   return (
     <div
-      className={`pointer-events-none relative z-10 flex h-full items-end justify-center px-2 transition-opacity duration-300 ${visible ? 'opacity-100' : 'opacity-0'}`}
-      style={{ gridRow: row, gridColumn: col, marginTop: '-13rem' }}
+      className={`pointer-events-none relative z-10 flex h-full justify-center px-2 transition-opacity duration-300 ${mobileMode ? 'items-start' : 'items-end'} ${visible ? 'opacity-100' : 'opacity-0'}`}
+      style={{ gridRow: row, gridColumn: col, marginTop: mobileMode ? '4rem' : '-13rem' }}
     >
-      <div className="pointer-events-auto flex w-full flex-col overflow-hidden rounded-[6px] border" style={{ borderColor: theme.panelBorder, backgroundColor: theme.protoBg }}>
-        <div className="px-4 py-3 font-mono text-[11px] leading-5" style={{ color: theme.textStrong }}>
+      <div
+        className="pointer-events-auto relative flex w-full flex-col overflow-hidden rounded-[6px] border"
+        style={{
+          width: compact ? (mobileMode ? '14rem' : '15rem') : '100%',
+          borderColor: theme.panelBorder,
+          backgroundColor: theme.protoBg,
+          ...(selected && mobileMode ? selectedCompactStyle(theme) : {}),
+        }}
+      >
+        {!compact && (
+        <div className="px-4 py-3 pt-12 font-mono text-[11px] leading-5" style={{ color: theme.textStrong }}>
           <div style={{ color: theme.accent }}>{CODE_TEXT.serviceCommandService} {'{'}</div>
           <div>  {CODE_TEXT.rpcSignature}</div>
           <div>{'}'}</div>
@@ -1276,18 +1608,198 @@ function ProtoPanel({ row, col, visible, theme, onInfoOpen, onExpandOpen }) {
           <div>  {CODE_TEXT.stringStdout}</div>
           <div>{'}'}</div>
         </div>
-        <div className="flex items-center justify-between border-t px-4 py-2" style={{ borderTopColor: theme.footerBorder, color: theme.textStrong }}>
+        )}
+        <div
+          className={`flex items-center justify-between px-4 py-2 ${compact ? '' : 'border-t'}`}
+          style={{ borderTopColor: theme.footerBorder, color: theme.textStrong }}
+          onClick={compact && visible ? (mobileMode ? onExpandOpen : onToggleMinimize) : undefined}
+        >
           <span className="flex items-center gap-2 text-[clamp(1rem,1.2vw,1.2rem)] font-medium">
-            <InfoButton disabled={!visible} theme={theme} onClick={(anchor) => onInfoOpen?.(BOX_TITLES.protoDefinition, anchor)} />
+            <InfoButton disabled={!visible} theme={theme} selected={selected} onClick={(anchor) => onInfoOpen?.(BOX_TITLES.protoDefinition, anchor)} />
             <span>{BOX_TITLES.protoDefinition}</span>
           </span>
+          {!mobileMode && (
           <span className="flex h-6 w-6 items-center justify-center">
             <ExpandButton disabled={!visible} theme={theme} onClick={onExpandOpen} />
           </span>
+          )}
         </div>
       </div>
     </div>
   )
+}
+
+function MobileTerminal({ layer, activeTab, theme, onTabChange, command, onCommandRun, isRunning }) {
+  return (
+    <section className="flex min-h-0 flex-[1.35] flex-col px-3 pb-2 pt-4">
+      <div className="mb-2 flex" style={{ backgroundColor: theme.panelBg }}>
+        <UnderlineTab label="Messages" active={activeTab === 'messages'} theme={theme} onClick={() => onTabChange('messages')} />
+        <UnderlineTab label="Explanation" active={activeTab === 'explanation'} theme={theme} onClick={() => onTabChange('explanation')} />
+      </div>
+      <div className="min-h-0 flex-1 overflow-hidden" style={{ backgroundColor: theme.panelBg }}>
+        {!layer ? (
+          <div className="flex h-full items-center justify-center px-6 text-center text-sm leading-7" style={{ color: theme.textMuted }}>
+            Tap a box below to load its messages and explanation here.
+          </div>
+        ) : activeTab === 'messages' ? (
+          <MobileTerminalMessages
+            layer={layer}
+            theme={theme}
+            command={command}
+            onCommandRun={onCommandRun}
+            isRunning={isRunning}
+          />
+        ) : (
+          <MobileTerminalExplanation info={LAYER_INFO[layer.infoKey]} theme={theme} />
+        )}
+      </div>
+    </section>
+  )
+}
+
+function UnderlineTab({ label, active, theme, onClick }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="relative flex-1 px-3 py-2.5 text-sm font-medium transition-colors"
+      style={{
+        color: active ? theme.accentStrong : theme.textMuted,
+      }}
+    >
+      {label}
+      {active && (
+        <span
+          className="absolute bottom-0 left-[10%] right-[10%] h-[3px]"
+          style={{ backgroundColor: theme.accentStrong }}
+          aria-hidden="true"
+        />
+      )}
+    </button>
+  )
+}
+
+function TerminalTab({ label, active, theme, onClick }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex-1 rounded-[4px] px-3 py-2.5 text-sm font-medium transition-colors"
+      style={{
+        color: active ? theme.accentStrong : theme.textMuted,
+        backgroundColor: active ? theme.accentSoftBg : 'transparent',
+      }}
+    >
+      {label}
+    </button>
+  )
+}
+
+function MobileTerminalMessages({ layer, theme, command, onCommandRun, isRunning }) {
+  const [activeSplitTab, setActiveSplitTab] = useState('inbound')
+
+  useEffect(() => {
+    setActiveSplitTab('inbound')
+  }, [layer.sourceId])
+
+  if (layer.sourceId === 1) {
+    const activeCommand = extractClientCommand(layer.mainTokens) || command
+    const tailTokens = layer.mainTokens?.[0]?.kind === 'command' ? layer.mainTokens.slice(1) : (layer.mainTokens || [])
+    const hasOutput = layer.mainTokens?.some((token) => token.kind === 'output')
+    const displayTokens = activeCommand
+      ? [
+          { kind: 'prompt', value: '$ ' },
+          { kind: 'command', value: activeCommand },
+          ...tailTokens,
+        ]
+      : [{ kind: 'prompt', value: '$ ' }]
+
+    return (
+      <div className="flex h-full flex-col px-2 py-4 font-mono text-sm leading-6" style={{ color: theme.textStrong }}>
+        <div className="min-h-0 flex-1 overflow-auto">
+          <TokenRenderer tokens={displayTokens} theme={theme} />
+          {!activeCommand && !isRunning && <PromptCursor theme={theme} />}
+          {isRunning && !hasOutput && (
+            <div className="mt-1" style={{ color: theme.dim }}>
+              <AsciiSpinner theme={theme} />
+            </div>
+          )}
+        </div>
+        <div className="mt-4 shrink-0">
+          <div className="flex flex-wrap items-center gap-2">
+            {MOBILE_COMMANDS.map((cmd) => (
+              <button
+                key={cmd}
+                type="button"
+                onClick={() => onCommandRun(cmd)}
+                disabled={isRunning}
+                className="rounded-[4px] border px-2.5 py-1 font-mono text-sm transition-colors disabled:opacity-40"
+                style={{
+                  color: activeCommand === cmd ? theme.accentStrong : theme.textMuted,
+                  borderColor: activeCommand === cmd ? theme.accentStrong : theme.inputBorder,
+                  backgroundColor: activeCommand === cmd ? theme.accentSoftBg : 'transparent',
+                }}
+              >
+                {cmd}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (layer.type === 'split') {
+    return (
+      <div className="flex h-full flex-col">
+        <div className="min-h-0 flex-1 overflow-auto p-4 font-mono text-sm leading-6" style={{ color: theme.textStrong }}>
+          <TokenRenderer tokens={activeSplitTab === 'inbound' ? layer.leftTokens : layer.rightTokens} theme={theme} />
+        </div>
+        <div className="mt-auto flex gap-1 pt-2" style={{ backgroundColor: theme.panelBg }}>
+          <TerminalTab label="Inbound" active={activeSplitTab === 'inbound'} theme={theme} onClick={() => setActiveSplitTab('inbound')} />
+          <TerminalTab label="Outbound" active={activeSplitTab === 'outbound'} theme={theme} onClick={() => setActiveSplitTab('outbound')} />
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="h-full overflow-auto p-4 font-mono text-sm leading-6" style={{ color: theme.textStrong }}>
+      <TokenRenderer tokens={layer.mainTokens} theme={theme} />
+    </div>
+  )
+}
+
+function MobileTerminalExplanation({ info, theme }) {
+  if (!info) return null
+
+  return (
+    <div className="h-full overflow-auto px-4 py-4 text-sm leading-7" style={{ color: theme.text }}>
+      <p><MarkdownText text={info.body} theme={theme} /></p>
+      <p className="mt-4"><MarkdownText text={info.more} theme={theme} /></p>
+    </div>
+  )
+}
+
+function AsciiSpinner({ theme }) {
+  const frames = ['[    ]', '[=   ]', '[==  ]', '[=== ]', '[ ===]', '[  ==]', '[   =]']
+  const [frameIndex, setFrameIndex] = useState(0)
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setFrameIndex((current) => (current + 1) % frames.length)
+    }, 140)
+
+    return () => window.clearInterval(timer)
+  }, [frames.length])
+
+  return (
+    <span style={{ color: theme.dim }}>{frames[frameIndex]}</span>
+  )
+}
+
+function PromptCursor({ theme }) {
+  return <span className="ml-0.5 inline-block h-[1.05em] w-[0.58ch] align-[-0.12em] animate-[rpc-cursor_1s_step-end_infinite]" style={{ backgroundColor: theme.accent }} aria-hidden="true" />
 }
 
 function TokenRenderer({ tokens, large = false, theme }) {
@@ -1512,6 +2024,11 @@ function buildProtoTokens() {
   ]
 }
 
+function extractClientCommand(tokens) {
+  const commandToken = tokens?.find((token) => token.kind === 'command' && token.value?.trim())
+  return commandToken?.value ?? ''
+}
+
 function formatMessage(name, fields) {
   const tokens = [
     { kind: 'key', value: name },
@@ -1535,6 +2052,7 @@ function formatMessage(name, fields) {
 function buildExpandedLayer(boxes, boxId, infoKey) {
   if (boxId === 1 || boxId === 6) {
     return {
+      sourceId: boxId,
       type: 'stage',
       infoKey,
       footerLeft: boxes[boxId].footerLeft,
@@ -1543,6 +2061,7 @@ function buildExpandedLayer(boxes, boxId, infoKey) {
   }
 
   return {
+    sourceId: boxId,
     type: 'split',
     infoKey,
     footerLeft: boxes[boxId].footerLeft,
@@ -1553,6 +2072,7 @@ function buildExpandedLayer(boxes, boxId, infoKey) {
 
 function buildProtoExpandedLayer() {
   return {
+    sourceId: 'proto',
     type: 'proto',
     infoKey: BOX_TITLES.protoDefinition,
     footerLeft: BOX_TITLES.protoDefinition,
@@ -1580,9 +2100,9 @@ function ArrowHead({ horizontal = false, active = false, theme }) {
   )
 }
 
-function InfoIcon() {
+function InfoIcon({ size = 22 }) {
   return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
       <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.8" />
       <path d="M12 10V16" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
       <circle cx="12" cy="7" r="1.2" fill="currentColor" />
@@ -1650,9 +2170,9 @@ function DiscussionIcon() {
   )
 }
 
-function GearIcon() {
+function GearIcon({ size = 40 }) {
   return (
-    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
       <path
         d="M19.14 12.94C19.18 12.64 19.2 12.32 19.2 12C19.2 11.68 19.18 11.36 19.12 11.06L21.04 9.56C21.22 9.42 21.26 9.16 21.14 8.96L19.32 5.8C19.2 5.58 18.94 5.5 18.72 5.58L16.46 6.5C15.98 6.14 15.46 5.84 14.88 5.62L14.54 3.22C14.5 2.98 14.3 2.8 14.04 2.8H10.4C10.14 2.8 9.94 2.98 9.9 3.22L9.56 5.62C8.98 5.84 8.46 6.16 7.98 6.5L5.72 5.58C5.48 5.48 5.22 5.58 5.12 5.8L3.3 8.96C3.18 9.18 3.22 9.42 3.4 9.56L5.32 11.06C5.28 11.36 5.24 11.68 5.24 12C5.24 12.32 5.26 12.64 5.32 12.94L3.4 14.44C3.22 14.58 3.18 14.84 3.3 15.04L5.12 18.2C5.24 18.42 5.5 18.5 5.72 18.42L7.98 17.5C8.46 17.86 8.98 18.16 9.56 18.38L9.9 20.78C9.94 21.02 10.14 21.2 10.4 21.2H14.04C14.3 21.2 14.5 21.02 14.54 20.78L14.88 18.38C15.46 18.16 15.98 17.84 16.46 17.5L18.72 18.42C18.96 18.52 19.22 18.42 19.32 18.2L21.14 15.04C21.26 14.82 21.22 14.58 21.04 14.44L19.14 12.94Z"
         stroke="currentColor"
@@ -1664,8 +2184,15 @@ function GearIcon() {
   )
 }
 
-function stageClass(enabled, active) {
-  return `relative flex min-h-0 flex-col overflow-hidden rounded-[6px] border transition-all duration-500 ${active ? 'shadow-[0_0_0_2px_rgba(34,211,238,0.16),0_0_28px_rgba(34,211,238,0.14)]' : ''}`
+function stageClass(enabled, active, minimized = false) {
+  return `relative flex min-h-0 flex-col overflow-hidden rounded-[6px] border transition-all duration-500 ${minimized ? 'h-auto min-h-[0]' : ''} ${active ? 'shadow-[0_0_0_2px_rgba(34,211,238,0.16),0_0_28px_rgba(34,211,238,0.14)]' : ''}`
+}
+
+function selectedCompactStyle(theme) {
+  return {
+    borderColor: theme.accentStrong,
+    boxShadow: `0 0 14px ${theme.accentSoftBg}, 0 0 24px ${theme.accentSoftBg}`,
+  }
 }
 
 function panelStyle(theme, enabled, active) {
@@ -1680,6 +2207,8 @@ function panelStyle(theme, enabled, active) {
 
 function tokenStyle(kind, theme) {
   switch (kind) {
+    case 'prompt':
+      return { color: theme.accent }
     case 'command':
       return { color: theme.command }
     case 'output':
