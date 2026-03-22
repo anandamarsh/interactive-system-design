@@ -336,7 +336,9 @@ export default function RpcDemo() {
   const [expandedLayer, setExpandedLayer] = useState(null)
   const [mobileTerminalSelection, setMobileTerminalSelection] = useState({ sourceId: 1, infoKey: 'Client' })
   const [mobileTerminalTab, setMobileTerminalTab] = useState('messages')
-  const [isGuideOpen, setIsGuideOpen] = useState(() => window.innerWidth >= MOBILE_BREAKPOINT_PX)
+  const [isGuideOpen, setIsGuideOpen] = useState(false)
+  const [isGuideIntroVisible, setIsGuideIntroVisible] = useState(false)
+  const [hasHandledGuideIntro, setHasHandledGuideIntro] = useState(false)
   const [isDiscussionOpen, setIsDiscussionOpen] = useState(false)
   const [guideWidth, setGuideWidth] = useState(460)
   const [revealedBoxes, setRevealedBoxes] = useState([1])
@@ -365,6 +367,16 @@ export default function RpcDemo() {
   useEffect(() => {
     if (isMobile) setIsGuideOpen(false)
   }, [isMobile])
+
+  useEffect(() => {
+    if (isGuideOpen || hasHandledGuideIntro) return
+
+    const timer = window.setTimeout(() => {
+      setIsGuideIntroVisible(true)
+    }, 2000)
+
+    return () => window.clearTimeout(timer)
+  }, [hasHandledGuideIntro, isGuideOpen])
 
   useEffect(() => {
     const beepAudio = new Audio('/audio/beep.mp3')
@@ -608,6 +620,17 @@ export default function RpcDemo() {
     setExpandedLayer(layer)
   }
 
+  function handleGuideOpen() {
+    setIsGuideOpen(true)
+    setIsGuideIntroVisible(false)
+    setHasHandledGuideIntro(true)
+  }
+
+  function handleGuideIntroClose() {
+    setIsGuideIntroVisible(false)
+    setHasHandledGuideIntro(true)
+  }
+
   return (
     <div className="rpc-stage-shell relative flex h-full w-full overflow-hidden border" style={{ backgroundColor: theme.shellBg, borderColor: theme.shellBorder }}>
       {isMobile ? (
@@ -627,7 +650,7 @@ export default function RpcDemo() {
         {!isGuideOpen && !isMobile && (
           <button
             type="button"
-            onClick={() => setIsGuideOpen(true)}
+            onClick={handleGuideOpen}
             className="absolute left-4 top-4 z-30 flex h-10 w-10 items-center justify-center rounded-full transition-colors"
             style={{ color: theme.accent, backgroundColor: 'transparent' }}
             aria-label={UI_TEXT.openGuide}
@@ -635,6 +658,7 @@ export default function RpcDemo() {
             <InfoIcon />
           </button>
         )}
+        <GuideIntroBubble visible={isGuideIntroVisible} mobileMode={isMobile} theme={theme} onClose={handleGuideIntroClose} onOpen={handleGuideOpen} />
         <div className={`h-full overflow-hidden ${isMobile ? 'flex flex-col' : ''}`} style={{ backgroundColor: theme.shellBg }}>
           {isMobile && (
             <MobileTerminal
@@ -874,7 +898,7 @@ export default function RpcDemo() {
         <div className="pointer-events-none absolute bottom-4 left-4 z-40">
           <button
             type="button"
-            onClick={() => setIsGuideOpen(true)}
+            onClick={handleGuideOpen}
             className="pointer-events-auto flex h-14 w-14 items-center justify-center transition-transform hover:-translate-y-0.5"
             style={{ color: theme.accent, backgroundColor: 'transparent' }}
             aria-label={UI_TEXT.openGuide}
@@ -1059,6 +1083,19 @@ function GuidePanel({ theme, width, onResizeStart, onClose }) {
         </div>
 
         <div className="flex-1 overflow-y-auto px-5 py-5">
+          <div className="space-y-3 text-[0.95rem] leading-7" style={{ color: theme.text }}>
+            {GUIDE_TEXT.introduction.lines.map((line, index) => (
+              <p key={`guide-summary-${index}`}>
+                <MarkdownText text={line} theme={theme} />
+              </p>
+            ))}
+            <div className="border-t" style={{ borderTopColor: theme.panelBorder }} />
+            <p style={{ color: theme.textStrong }}>
+              <MarkdownText text={GUIDE_TEXT.introduction.simulationLine} theme={theme} />
+            </p>
+          </div>
+          <div className="mb-4 mt-4 border-t" style={{ borderTopColor: theme.panelBorder }} />
+
           <div className="overflow-hidden rounded-[10px] border" style={{ borderColor: theme.panelBorder, backgroundColor: theme.panelBg }}>
             <div className="aspect-video w-full">
               <iframe
@@ -1121,6 +1158,19 @@ function MobileGuideSheet({ open, theme, onClose }) {
           </button>
         </div>
         <div className="flex-1 overflow-y-auto px-5 py-5">
+          <div className="space-y-3 text-[0.95rem] leading-7" style={{ color: theme.text }}>
+            {GUIDE_TEXT.introduction.lines.map((line, index) => (
+              <p key={`mobile-guide-summary-${index}`}>
+                <MarkdownText text={line} theme={theme} />
+              </p>
+            ))}
+            <div className="border-t" style={{ borderTopColor: theme.panelBorder }} />
+            <p style={{ color: theme.textStrong }}>
+              <MarkdownText text={GUIDE_TEXT.introduction.simulationLine} theme={theme} />
+            </p>
+          </div>
+          <div className="mb-4 mt-4 border-t" style={{ borderTopColor: theme.panelBorder }} />
+
           <div className="overflow-hidden border" style={{ borderColor: theme.panelBorder, backgroundColor: theme.panelBg }}>
             <div className="aspect-video w-full">
               <iframe
@@ -1157,6 +1207,74 @@ function MobileGuideSheet({ open, theme, onClose }) {
           </div>
         </div>
       </div>
+    </div>
+  )
+}
+
+function GuideIntroBubble({ visible = false, mobileMode = false, theme, onClose, onOpen }) {
+  return (
+    <div
+      className={`absolute z-40 cursor-pointer rounded-[4px] border px-4 py-3 shadow-[0_18px_50px_rgba(2,12,27,0.2)] transition-all duration-500 ${visible ? 'pointer-events-auto opacity-100 translate-y-0' : 'pointer-events-none opacity-0 translate-y-2'} ${mobileMode ? 'bottom-20 left-0 right-0 w-full' : 'left-4 top-16 max-w-[24rem]'}`}
+      style={{ borderColor: theme.panelBorder, backgroundColor: theme.popupBg }}
+      onClick={onOpen}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' || event.key === ' ') onOpen()
+      }}
+    >
+      <button
+        type="button"
+        onClick={(event) => {
+          event.stopPropagation()
+          onClose()
+        }}
+        className="absolute right-2 top-2 flex h-7 w-7 items-center justify-center transition-colors"
+        style={{ color: theme.accent }}
+        aria-label="Close introduction"
+      >
+        <CloseIcon />
+      </button>
+
+      <div className="space-y-3 pr-7 text-[0.95rem] leading-7" style={{ color: theme.text }}>
+        {GUIDE_TEXT.introduction.lines.map((line, index) => (
+          <p key={`guide-intro-line-${index}`}>
+            <MarkdownText text={line} theme={theme} />
+          </p>
+        ))}
+        <div className="border-t" style={{ borderTopColor: theme.panelBorder }} />
+        <p className="pt-1" style={{ color: theme.textStrong }}>
+          <MarkdownText text={GUIDE_TEXT.introduction.simulationLine} theme={theme} />
+        </p>
+      </div>
+
+      {mobileMode ? (
+        <>
+          <div
+            className="absolute bottom-[-12px] left-7 h-0 w-0 border-l-[12px] border-r-[12px] border-t-[12px] border-l-transparent border-r-transparent"
+            style={{ borderTopColor: theme.panelBorder }}
+            aria-hidden="true"
+          />
+          <div
+            className="absolute bottom-[-10px] left-[29px] h-0 w-0 border-l-[11px] border-r-[11px] border-t-[11px] border-l-transparent border-r-transparent"
+            style={{ borderTopColor: theme.popupBg }}
+            aria-hidden="true"
+          />
+        </>
+      ) : (
+        <>
+          <div
+            className="absolute left-[8px] top-[-12px] h-0 w-0 border-b-[12px] border-l-[12px] border-r-[12px] border-l-transparent border-r-transparent"
+            style={{ borderBottomColor: theme.panelBorder }}
+            aria-hidden="true"
+          />
+          <div
+            className="absolute left-[9px] top-[-10px] h-0 w-0 border-b-[11px] border-l-[11px] border-r-[11px] border-l-transparent border-r-transparent"
+            style={{ borderBottomColor: theme.popupBg }}
+            aria-hidden="true"
+          />
+        </>
+      )}
     </div>
   )
 }

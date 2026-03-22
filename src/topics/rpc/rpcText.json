@@ -48,7 +48,15 @@
     "closeExpandedLayer": "Close expanded layer"
   },
   "guide": {
-    "title": "gRPC Guide",
+    "title": "RPC (Remote Procedure Call)",
+    "introduction": {
+      "lines": [
+        "**RPC** is a way one computer (like your local machine) calls another computer (often in the cloud) to run a function as if it were local, usually because the remote system hosts the service or resources.",
+        "In **system design**, **RPC** matters because remote calls introduce **latency**, **failures**, and **costs**, so you must balance local vs remote execution.",
+        "In **agentic computing**, agents use **RPC-style interfaces** to call external **tools**, **APIs**, and **execution environments** instead of doing everything locally."
+      ],
+      "simulationLine": "In this simulation, you can enter a **Linux command** and watch it traverse the **local** and **remote** stack using **gRPC** protocol."
+    },
     "videoTitle": "gRPC explainer video",
     "videoEmbedUrl": "https://www.youtube.com/embed/gnchfOojMk4?si=x-QDoKANj3zcLctm",
     "paragraphs": [
