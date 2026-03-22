@@ -4,6 +4,7 @@ import { chapters, topics } from '../registry/topics'
 
 export default function Sidebar({ isOpen, onClose }) {
   const { themeName } = useAppTheme()
+  const buildTime = formatBuildTime(__BUILD_TIME__)
 
   return (
     <>
@@ -78,7 +79,23 @@ ${isOpen ? 'translate-x-0' : '-translate-x-full'}
             </div>
           ))}
         </nav>
+
+        <div className={`px-5 py-3 text-xs ${themeName === 'dark' ? 'border-t border-slate-800 text-slate-400' : 'border-t border-slate-200 text-slate-500'}`}>
+          Built at {buildTime}
+        </div>
       </aside>
     </>
   )
+}
+
+function formatBuildTime(buildTime) {
+  const date = new Date(buildTime)
+  if (Number.isNaN(date.getTime())) return '--:--:--'
+
+  return new Intl.DateTimeFormat('en-US', {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  }).format(date)
 }
