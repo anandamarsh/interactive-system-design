@@ -350,6 +350,7 @@ export default function RpcDemo() {
   const beepAudioRef = useRef(null)
   const networkAudioRef = useRef(null)
   const typingAudioRef = useRef(null)
+  const audioPrimedRef = useRef(false)
 
   useEffect(() => {
     function handleResize() {
@@ -450,6 +451,7 @@ export default function RpcDemo() {
     const trimmed = nextCommand.trim()
     if (!COMMANDS[trimmed] || isRunning) return
 
+    primeAudioRefs([beepAudioRef, networkAudioRef, typingAudioRef], audioPrimedRef)
     setCommand(trimmed)
     clearTimers(timersRef)
     setIsRemoteProcessing(false)
@@ -1470,6 +1472,8 @@ function VerticalArrow({ id, direction, row, col, lane, visible, active, start, 
   const position = start || (lane === 'left' ? '34%' : '66%')
   const arrowEnd = end || '7px'
   const arrowHeight = mobileMode ? '100%' : (height || '58px')
+  const mobileArrowOpacity = active ? 0.78 : 0.48
+  const shaftWidth = mobileMode ? '2px' : '3px'
   const shaftHeight = mobileMode
     ? (isDown ? 'calc(100% - 18px)' : 'calc(100% - 10px)')
     : (isDown ? 'calc(100% - 14px)' : 'calc(100% - 6px)')
@@ -1488,13 +1492,13 @@ function VerticalArrow({ id, direction, row, col, lane, visible, active, start, 
         zIndex: 40,
       }}
     >
-      <div className="relative h-full w-full overflow-visible">
-        <div className="absolute top-1 w-[3px]" style={{ left: position, height: shaftHeight, backgroundColor: active ? theme.accent : theme.accentStrong, boxShadow: active ? theme.accentShadow : 'none' }} />
+      <div className="relative h-full w-full overflow-visible" style={{ opacity: mobileMode ? mobileArrowOpacity : 1 }}>
+        <div className="absolute top-1" style={{ left: position, width: shaftWidth, height: shaftHeight, backgroundColor: active ? theme.accent : theme.accentStrong, boxShadow: active ? theme.accentShadow : 'none' }} />
         <div
           className={`absolute ${isDown ? 'bottom-1' : 'top-1 rotate-180'}`}
           style={{ left: `calc(${position} - ${arrowEnd})` }}
         >
-          <ArrowHead active={active} theme={theme} />
+          <ArrowHead active={active} mobileMode={mobileMode} theme={theme} />
         </div>
       </div>
     </div>
@@ -1506,30 +1510,30 @@ function NetworkBridge({ row, col, showForward, showReturn, forwardActive, retur
     return (
       <div className="pointer-events-none relative z-20" style={{ gridRow: row, gridColumn: col }}>
         {showForward && (
-          <div className="absolute left-[32%] top-[52%] w-[3px]" style={{ height: '34%', backgroundColor: theme.accentStrong, boxShadow: forwardActive ? theme.accentShadow : 'none' }}>
+          <div className="absolute left-[32%] top-[52%] w-[2px]" style={{ height: '34%', opacity: forwardActive ? 0.78 : 0.48, backgroundColor: theme.accentStrong, boxShadow: forwardActive ? theme.accentShadow : 'none' }}>
             <div className="absolute left-1/2 top-full -translate-x-1/2 -translate-y-1/2">
-              <ArrowHead active={forwardActive} theme={theme} />
+              <ArrowHead active={forwardActive} mobileMode theme={theme} />
             </div>
           </div>
         )}
         {showForward && (
-          <div className="absolute left-[63%] top-[58%] w-[3px]" style={{ height: '34%', backgroundColor: theme.accentStrong, boxShadow: forwardActive ? theme.accentShadow : 'none' }}>
+          <div className="absolute left-[63%] top-[58%] w-[2px]" style={{ height: '34%', opacity: forwardActive ? 0.78 : 0.48, backgroundColor: theme.accentStrong, boxShadow: forwardActive ? theme.accentShadow : 'none' }}>
             <div className="absolute left-1/2 top-0 -translate-x-1/2 -translate-y-1/2 rotate-180">
-              <ArrowHead active={forwardActive} theme={theme} />
+              <ArrowHead active={forwardActive} mobileMode theme={theme} />
             </div>
           </div>
         )}
         {showReturn && (
-          <div className="absolute left-[37%] top-[58%] w-[3px]" style={{ height: '34%', backgroundColor: theme.accentStrong, boxShadow: returnActive ? theme.accentShadow : 'none' }}>
+          <div className="absolute left-[37%] top-[58%] w-[2px]" style={{ height: '34%', opacity: returnActive ? 0.78 : 0.48, backgroundColor: theme.accentStrong, boxShadow: returnActive ? theme.accentShadow : 'none' }}>
             <div className="absolute left-1/2 top-0 -translate-x-1/2 -translate-y-1/2 rotate-180">
-              <ArrowHead active={returnActive} theme={theme} />
+              <ArrowHead active={returnActive} mobileMode theme={theme} />
             </div>
           </div>
         )}
         {showReturn && (
-          <div className="absolute left-[68%] top-[52%] w-[3px]" style={{ height: '34%', backgroundColor: theme.accentStrong, boxShadow: returnActive ? theme.accentShadow : 'none' }}>
+          <div className="absolute left-[68%] top-[52%] w-[2px]" style={{ height: '34%', opacity: returnActive ? 0.78 : 0.48, backgroundColor: theme.accentStrong, boxShadow: returnActive ? theme.accentShadow : 'none' }}>
             <div className="absolute left-1/2 top-full -translate-x-1/2 -translate-y-1/2">
-              <ArrowHead active={returnActive} theme={theme} />
+              <ArrowHead active={returnActive} mobileMode theme={theme} />
             </div>
           </div>
         )}
@@ -2085,22 +2089,23 @@ function buildProtoExpandedLayer() {
   }
 }
 
-function ArrowHead({ horizontal = false, active = false, theme }) {
+function ArrowHead({ horizontal = false, active = false, mobileMode = false, theme }) {
   const stroke = active ? theme.accent : theme.accentStrong
+  const strokeWidth = mobileMode ? '2' : '3'
 
   if (horizontal) {
     return (
       <svg width="18" height="14" viewBox="0 0 18 14" fill="none">
-        <path d="M1 7H15" stroke={stroke} strokeWidth="3" strokeLinecap="round" />
-        <path d="M10.5 1.5L16 7L10.5 12.5" stroke={stroke} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+        <path d="M1 7H15" stroke={stroke} strokeWidth={strokeWidth} strokeLinecap="round" />
+        <path d="M10.5 1.5L16 7L10.5 12.5" stroke={stroke} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" />
       </svg>
     )
   }
 
   return (
     <svg width="16" height="14" viewBox="0 0 16 14" fill="none">
-      <path d="M8 12.5V1.5" stroke={stroke} strokeWidth="3" strokeLinecap="round" />
-      <path d="M2 6.5L8 12.5L14 6.5" stroke={stroke} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M8 12.5V1.5" stroke={stroke} strokeWidth={strokeWidth} strokeLinecap="round" />
+      <path d="M2 6.5L8 12.5L14 6.5" stroke={stroke} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   )
 }
@@ -2265,6 +2270,28 @@ function stopAudio(audio) {
   if (!audio) return
   audio.pause()
   audio.currentTime = 0
+}
+
+function primeAudioRefs(audioRefs, primedRef) {
+  if (primedRef.current) return
+  primedRef.current = true
+
+  audioRefs.forEach((audioRef) => {
+    const audio = audioRef.current
+    if (!audio) return
+
+    const wasMuted = audio.muted
+    audio.muted = true
+    audio.play()
+      .then(() => {
+        audio.pause()
+        audio.currentTime = 0
+        audio.muted = wasMuted
+      })
+      .catch(() => {
+        audio.muted = wasMuted
+      })
+  })
 }
 
 function classifyJsonValue(value) {
