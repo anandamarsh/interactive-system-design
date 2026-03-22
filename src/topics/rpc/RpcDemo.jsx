@@ -887,8 +887,13 @@ export default function RpcDemo() {
           <button
             type="button"
             onClick={() => setIsDiscussionOpen(true)}
-            className="pointer-events-auto flex h-12 w-12 items-center justify-center transition-transform hover:-translate-y-0.5"
-            style={{ backgroundColor: 'transparent', color: theme.accent }}
+            className={`pointer-events-auto flex h-12 w-12 items-center justify-center transition-transform hover:-translate-y-0.5 ${isMobile ? '' : 'rounded-full border'}`}
+            style={{
+              backgroundColor: 'transparent',
+              color: theme.accent,
+              borderColor: isMobile ? 'transparent' : theme.panelBorder,
+              boxShadow: isMobile ? 'none' : theme.accentShadow,
+            }}
             aria-label={DISCUSSION_TEXT.buttonLabel}
           >
             <DiscussionIcon />
