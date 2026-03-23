@@ -160,6 +160,61 @@ SUB-COMPONENTS examples for LRU Cache:
   NodeCard — individual cache node with key/value and status highlight.
 
 ═══════════════════════════════════════════════════════
+SIMULATION TYPE: comparison
+═══════════════════════════════════════════════════════
+
+For simulations that run multiple algorithms side-by-side on the same input (e.g., Caching Strategies, Sorting Algorithms, Load Balancing policies).
+
+KEY DIFFERENCES:
+  - N strategy columns rendered simultaneously, all processing the same step.
+  - User picks a named scenario (preset access sequence) rather than free-form input.
+  - A reference strategy (isReference: true) is always visible as a greyed benchmark column.
+  - Playback is global — Play/Pause/Step/Reset advances all columns together.
+
+STATE SHAPE:
+  scenarioId: string                          // which scenario is selected
+  capacity: number                            // cache size (from slider)
+  stepIndex: number                           // current position in access sequence (-1 = not started)
+  isPlaying: boolean
+  strategyStates: { [strategyId]: {           // one entry per strategy
+    slots: string[],                          // current cache contents
+    hits: number,
+    misses: number,
+    lastOp: { type, key, evictedKey?, reason } | null   // cleared after evictionHighlightMs
+  }}
+
+EVICTION LOGIC (one function per strategy):
+  LRU:     evict the last item in the access-order list (least recently used = tail)
+  LFU:     evict the item with lowest access frequency; tie-break by LRU order
+  FIFO:    evict the item at the front of the insertion-order queue (oldest inserted)
+  MRU:     evict the item at the head of the access-order list (most recently used)
+  Random:  evict Math.random() selected item
+  Optimal: scan remaining sequence; evict item whose next occurrence is furthest ahead (or never)
+
+PER-EVICTION TOOLTIP:
+  Use spec.simulation.evictionReasonTemplates[strategyId], substitute {key}, {stepsAgo}, {frequency},
+  {candidateCount}, {stepsUntilNext} as applicable. Show anchored to the evicted slot for evictionHighlightMs.
+
+SUB-COMPONENTS (all inline):
+  ScenarioPicker   — named scenario buttons
+  CapacitySlider   — range input updating all columns together
+  AccessTape       — full sequence strip with current step highlighted
+  StrategyColumn   — one column: name, "Used in" badges, slots, hit rate bar
+  CacheSlot        — single slot with status highlight
+  EvictionTooltip  — why this key was evicted
+  HitRateBar       — % bar
+  OptimalGapBadge  — "+15pp gap to Optimal" shown on real strategy columns
+  LessonCallout    — banner after scenario completes: lessonTitle + lessonBody + realWorldCallout
+
+LAYOUT:
+  Desktop: left sidebar (scenario picker + slider + controls) + main (tape above, strategy columns below).
+  Reference (Optimal) column last, muted/grey styling.
+  Mobile: vertical stack, strategy columns horizontally scrollable.
+
+SCENARIO COMPLETION:
+  After last step: setIsPlaying(false). After calloutDelayAfterCompleteMs, show LessonCallout banner.
+
+═══════════════════════════════════════════════════════
 topicText.json STRUCTURE
 ═══════════════════════════════════════════════════════
 

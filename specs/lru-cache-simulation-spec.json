@@ -1,5 +1,7 @@
 {
   "_schemaVersion": "1.0.0",
+  "_deprecated": true,
+  "_deprecationNote": "Superseded by specs/caching-strategies-simulation-spec.json which covers LRU alongside LFU, FIFO, MRU, Random, and Bélády's Optimal in a side-by-side comparison simulator. This file is retained as a schema example for the 'data-structure' simulation type (single-strategy, internal data structure focus).",
   "_note": "Hand-drafted spec for the LRU Cache simulation. Uses simulation.type='data-structure' to show the schema generalizes beyond layered-stack (RPC) simulations. Use with /sim-from-spec or specs/SIMULATION-SKILL.md to generate src/topics/lru-cache/LruCacheDemo.jsx.",
 
   "meta": {

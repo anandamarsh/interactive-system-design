@@ -1,0 +1,344 @@
+{
+  "_schemaVersion": "1.0.0",
+  "_note": "Spec for the Caching Strategies simulator. Uses simulation.type='comparison' — a side-by-side multi-strategy layout. Generate with /sim-from-spec or specs/SIMULATION-SKILL.md.",
+
+  "meta": {
+    "id": "caching-strategies",
+    "title": "Caching Strategies",
+    "shortTitle": "Caching Strategies",
+    "chapter": "Core Concepts",
+    "category": "Caching",
+    "tags": ["Cache", "Eviction", "LRU", "LFU", "Hit Rate"],
+    "difficulty": "Beginner",
+    "description": "Run the same access sequence through five eviction policies simultaneously. Watch hit rates diverge — and see exactly why Redis, PostgreSQL, and ARM CPUs each made a different choice.",
+    "concepts": [
+      "Eviction policies decide which item to remove when the cache is full — the choice matters enormously depending on the access pattern",
+      "LRU (Least Recently Used) wins when data exhibits temporal locality — recently touched items are likely to be touched again",
+      "LFU (Least Frequently Used) wins when a small set of hot keys dominates access — frequency beats recency",
+      "MRU (Most Recently Used) wins on sequential scans — evicting what you just read protects the truly hot data underneath",
+      "Bélády's Optimal sets the theoretical ceiling; real systems can never reach it, but the gap shows how much policy choice matters",
+      "Real systems (Redis, PostgreSQL) use approximations, not textbook algorithms — probabilistic LRU, clock sweep — because the overhead of perfect tracking exceeds the benefit"
+    ]
+  },
+
+  "simulation": {
+    "type": "comparison",
+
+    "trigger": {
+      "type": "scenario-select",
+      "description": "User picks a named scenario (preset access sequence). The same sequence plays across all strategy columns simultaneously.",
+      "playbackControls": ["play", "pause", "step-forward", "step-back", "reset"],
+      "stepIntervalMs": 900
+    },
+
+    "timing": {
+      "stepMs": 900,
+      "evictionHighlightMs": 600,
+      "calloutDelayAfterCompleteMs": 400
+    },
+
+    "layout": {
+      "desktopZoom": 0.9,
+      "mobileBreakpointPx": 768,
+      "panels": ["scenario-picker", "access-tape", "strategy-columns"],
+      "capacitySlider": { "min": 2, "max": 8, "default": 4 }
+    },
+
+    "strategies": [
+      {
+        "id": "lru",
+        "label": "LRU",
+        "fullLabel": "Least Recently Used",
+        "evictionRule": "Evict the item that was accessed least recently",
+        "evictionTooltip": "LRU: {key} was last accessed {n} steps ago — oldest access in the cache",
+        "color": "cyan",
+        "realWorldSystems": [
+          { "name": "Redis", "note": "allkeys-lru is the default eviction policy" },
+          { "name": "Linux page cache", "note": "Kernel uses LRU variants for page frame reclamation" },
+          { "name": "CDN edge nodes", "note": "Cloudflare and Fastly use LRU for edge cache eviction" }
+        ],
+        "realWorldDetail": "Redis's allkeys-lru is the industry default for session caches and general-purpose key-value stores. Note: Redis does NOT implement true LRU — it samples 5 random keys and evicts the least-recently-used among that sample. This probabilistic approximation is cheaper at scale and produces nearly identical hit rates in practice."
+      },
+      {
+        "id": "lfu",
+        "label": "LFU",
+        "fullLabel": "Least Frequently Used",
+        "evictionRule": "Evict the item that has been accessed fewest total times",
+        "evictionTooltip": "LFU: {key} has only been accessed {n} time(s) — lowest frequency in the cache",
+        "color": "violet",
+        "realWorldSystems": [
+          { "name": "Redis", "note": "allkeys-lfu policy, added in Redis 4.0" },
+          { "name": "CDN viral content", "note": "Keeps popular-but-old content alive even without recent access" }
+        ],
+        "realWorldDetail": "Redis added LFU support in version 4.0 specifically for workloads where some keys are accessed millions of times. A viral video from 6 months ago still gets millions of requests — LRU would evict it after a quiet period; LFU keeps it. Redis implements LFU with a Morris counter (probabilistic frequency counter) to avoid per-key access counters at scale."
+      },
+      {
+        "id": "fifo",
+        "label": "FIFO",
+        "fullLabel": "First In, First Out",
+        "evictionRule": "Evict the item that was inserted first, regardless of access history",
+        "evictionTooltip": "FIFO: {key} was the oldest item inserted — entered the cache {n} steps ago",
+        "color": "amber",
+        "realWorldSystems": [
+          { "name": "HTTP proxy caches", "note": "Simple proxy caches often use FIFO for predictability" },
+          { "name": "Early OS page replacement", "note": "First-generation OS page replacement before LRU hardware support" }
+        ],
+        "realWorldDetail": "FIFO is the simplest possible eviction policy — a queue. It ignores both recency and frequency, which is why it usually loses to LRU and LFU. Its main appeal is predictability and low implementation cost. FIFO also exhibits the famous Bélády's anomaly: for some access sequences, adding more cache capacity actually increases the miss rate. This does not happen with LRU."
+      },
+      {
+        "id": "mru",
+        "label": "MRU",
+        "fullLabel": "Most Recently Used",
+        "evictionRule": "Evict the item that was accessed most recently",
+        "evictionTooltip": "MRU: {key} was the most recently accessed item — accessed just {n} step(s) ago",
+        "color": "green",
+        "realWorldSystems": [
+          { "name": "PostgreSQL", "note": "Uses a ring buffer (approx. MRU) for sequential scan pages to protect OLTP data" },
+          { "name": "Database full-table scans", "note": "Any DBMS doing a full scan benefits from not evicting hot OLTP pages" }
+        ],
+        "realWorldDetail": "MRU sounds backwards — why evict what you just accessed? It wins on sequential scans (streaming): if you're reading A→B→C→D→A→B→C→D through a cache smaller than the sequence, you'll never reuse what you just read before it cycles back. Evicting the most recent item keeps the older hot data alive. PostgreSQL's 'ring buffer' strategy for sequential scans is a practical MRU approximation — it prevents a full table scan from flushing the entire buffer pool."
+      },
+      {
+        "id": "random",
+        "label": "Random",
+        "fullLabel": "Random Replacement",
+        "evictionRule": "Evict a randomly selected item",
+        "evictionTooltip": "Random: {key} was randomly selected for eviction from {n} candidates",
+        "color": "rose",
+        "realWorldSystems": [
+          { "name": "ARM processors", "note": "Hardware cache replacement in many ARM cores uses pseudo-random to save die area" },
+          { "name": "Embedded MCUs", "note": "Microcontrollers use random replacement to avoid LRU tracking overhead" }
+        ],
+        "realWorldDetail": "Random replacement is more competitive than intuition suggests. On large caches with hot-key distributions, a randomly evicted item is likely cold anyway — and random selection requires zero metadata (no recency tracking, no frequency counters). This makes it ideal for hardware caches where die area is the constraint. Benchmarks often show Random within 5–10% of LRU on real-world workloads, making it a surprisingly good trade-off."
+      },
+      {
+        "id": "optimal",
+        "label": "Optimal",
+        "fullLabel": "Bélády's Optimal",
+        "evictionRule": "Evict the item that will be accessed furthest in the future (requires future knowledge)",
+        "evictionTooltip": "Optimal: {key} will not be needed for {n} more steps — furthest future access",
+        "color": "slate",
+        "isReference": true,
+        "alwaysVisible": true,
+        "realWorldSystems": [
+          { "name": "Theoretical benchmark only", "note": "Cannot be implemented in practice — requires knowing the future" },
+          { "name": "Compiler/OS research", "note": "Used offline to benchmark real policies against the theoretical ceiling" }
+        ],
+        "realWorldDetail": "Bélády's Optimal algorithm (1966) defines the theoretical upper bound on cache hit rate: always evict whichever item will be accessed least soon. It is impossible to implement in a real system because it requires knowing the future access sequence in advance. Its value is as a benchmark: if your real policy achieves 74% and Optimal achieves 89%, the policy gap is 15 percentage points — the rest is unavoidable due to cache size. Optimal helps you decide whether a better policy is worth pursuing or whether you simply need more cache."
+      }
+    ],
+
+    "scenarios": [
+      {
+        "id": "temporal-locality",
+        "label": "Temporal Locality",
+        "description": "Recent keys repeat frequently. This is what most caches are designed for.",
+        "accessSequence": ["A","B","C","A","B","A","D","A","B","C","A","D","B","A","C","A","B","D","A","B"],
+        "defaultCapacity": 3,
+        "expectedWinner": "lru",
+        "lessonTitle": "Why LRU dominates for most workloads",
+        "lessonBody": "When recently-accessed items are likely to be accessed again (temporal locality), keeping the most recent items is the right call. LRU exploits this directly — it's why Redis chose LRU as its default.",
+        "realWorldCallout": "This is the access pattern of most web application caches: user sessions, database query results, API responses. Redis allkeys-lru is the right default here.",
+        "expectedHitRates": {
+          "lru": "~75%",
+          "lfu": "~70%",
+          "fifo": "~55%",
+          "mru": "~40%",
+          "random": "~60%",
+          "optimal": "~85%"
+        }
+      },
+      {
+        "id": "hot-keys",
+        "label": "Hot Keys (Zipf)",
+        "description": "A small set of keys dominates access — 20% of keys get 80% of hits.",
+        "accessSequence": ["A","A","B","A","C","A","B","A","D","A","B","A","E","A","B","C","A","B","A","D"],
+        "defaultCapacity": 3,
+        "expectedWinner": "lfu",
+        "lessonTitle": "Why LFU wins when frequency skew is high",
+        "lessonBody": "Key A is accessed 10 times; key E only once. LFU recognises A as permanently hot and never evicts it. LRU would evict A temporarily if a burst of new keys arrives — LFU's frequency counter protects against that.",
+        "realWorldCallout": "Viral content, leaderboard entries, and product catalog hot items follow Zipf distributions. Redis allkeys-lfu was added specifically for these workloads.",
+        "expectedHitRates": {
+          "lru": "~70%",
+          "lfu": "~80%",
+          "fifo": "~55%",
+          "mru": "~35%",
+          "random": "~65%",
+          "optimal": "~90%"
+        }
+      },
+      {
+        "id": "sequential-scan",
+        "label": "Sequential Scan",
+        "description": "Keys cycle in a fixed order longer than the cache. Classic streaming / full table scan pattern.",
+        "accessSequence": ["A","B","C","D","E","A","B","C","D","E","A","B","C","D","E","A","B","C","D","E"],
+        "defaultCapacity": 3,
+        "expectedWinner": "mru",
+        "lessonTitle": "Why LRU fails on sequential scans — and MRU saves the day",
+        "lessonBody": "The sequence cycles through 5 keys but the cache holds only 3. LRU evicts the oldest key — which is exactly the next one needed. It gets zero hits after warm-up. MRU evicts the key just read, which won't be needed again for 4 more steps, keeping the upcoming keys warm.",
+        "realWorldCallout": "PostgreSQL uses a ring buffer (approximating MRU) for sequential scans specifically to prevent full table scans from flushing the entire buffer pool and destroying OLTP query performance.",
+        "expectedHitRates": {
+          "lru": "~0%",
+          "lfu": "~0%",
+          "fifo": "~0%",
+          "mru": "~55%",
+          "random": "~25%",
+          "optimal": "~65%"
+        }
+      },
+      {
+        "id": "beladys-anomaly",
+        "label": "Bélády's Anomaly",
+        "description": "Increase cache size from 3 to 4 slots with FIFO — and watch the miss rate go UP.",
+        "accessSequence": ["A","B","C","D","A","B","E","A","B","C","D","E"],
+        "defaultCapacity": 3,
+        "anomalyCapacity": 4,
+        "expectedWinner": null,
+        "isAnomalyScenario": true,
+        "lessonTitle": "Bélády's anomaly: more cache, more misses (FIFO only)",
+        "lessonBody": "This specific sequence with FIFO at capacity 3 achieves a higher hit rate than at capacity 4. Adding cache space makes things worse. This anomaly is impossible for LRU — it's a mathematical property of stack algorithms. FIFO is not a stack algorithm, so it can exhibit this pathological behaviour.",
+        "realWorldCallout": "This is why cache capacity decisions need to be validated with real access traces, not just assumed to improve with more memory. The Bélády anomaly is rare in practice but is used to justify why LRU (and its variants) are preferred over FIFO in OS page replacement.",
+        "expectedHitRates": {
+          "lru": "N/A — LRU cannot exhibit this anomaly",
+          "lfu": "N/A — LFU cannot exhibit this anomaly",
+          "fifo": "Higher miss rate at capacity 4 than at capacity 3",
+          "mru": "N/A",
+          "random": "N/A",
+          "optimal": "Always improves or stays equal with more capacity"
+        }
+      },
+      {
+        "id": "random-uniform",
+        "label": "Random Uniform",
+        "description": "Completely random access across a large key space. No hot keys, no recency pattern.",
+        "accessSequence": ["F","A","D","B","G","C","E","A","H","B","F","D","C","G","A","E","H","B","D","C"],
+        "defaultCapacity": 4,
+        "expectedWinner": "random",
+        "lessonTitle": "Why Random replacement is competitive on uniform workloads",
+        "lessonBody": "When all keys are equally popular, there is no recency or frequency signal to exploit. LRU and LFU have nothing to work with and perform close to Random. This is why ARM processor designers chose random replacement for hardware caches — zero metadata overhead with negligible hit rate penalty on unpredictable access patterns.",
+        "realWorldCallout": "ARM Cortex-A cores use pseudo-random replacement for L1/L2 caches. The die area saved by not tracking LRU order in hardware far exceeds the hit-rate benefit on real mixed workloads.",
+        "expectedHitRates": {
+          "lru": "~30%",
+          "lfu": "~30%",
+          "fifo": "~30%",
+          "mru": "~30%",
+          "random": "~32%",
+          "optimal": "~45%"
+        }
+      },
+      {
+        "id": "working-set",
+        "label": "Working Set",
+        "description": "A small working set of keys accessed in random order. Cache is large enough to hold all of them.",
+        "accessSequence": ["A","C","B","A","D","B","C","A","D","C","B","A","D","B","C","D","A","C","B","D"],
+        "defaultCapacity": 4,
+        "expectedWinner": null,
+        "lessonTitle": "When cache size beats policy choice",
+        "lessonBody": "With 4 keys and a cache of size 4, every strategy achieves near-100% hit rate after warm-up. The policy does not matter — the cache is big enough to hold the entire working set. This is the most important lesson: when cache is larger than the working set, you don't need a clever policy. When cache is smaller than the working set, no policy can save you.",
+        "realWorldCallout": "This is why capacity planning matters more than eviction policy tuning in most real systems. Before debating LRU vs LFU, measure your working set size.",
+        "expectedHitRates": {
+          "lru": "~90%",
+          "lfu": "~90%",
+          "fifo": "~90%",
+          "mru": "~90%",
+          "random": "~90%",
+          "optimal": "~95%"
+        }
+      }
+    ],
+
+    "evictionReasonTemplates": {
+      "lru":     "LRU: {key} was last accessed {stepsAgo} step(s) ago — the oldest access in the cache",
+      "lfu":     "LFU: {key} has been accessed only {frequency} time(s) — the lowest frequency in the cache",
+      "fifo":    "FIFO: {key} was inserted {stepsAgo} step(s) ago — the oldest entry in the cache",
+      "mru":     "MRU: {key} was accessed just {stepsAgo} step(s) ago — the most recent access in the cache",
+      "random":  "Random: {key} was randomly selected from {candidateCount} candidate(s)",
+      "optimal": "Optimal: {key} will not be needed for {stepsUntilNext} more step(s) — furthest future access"
+    },
+
+    "content": {
+      "layers": {
+        "LRU": {
+          "title": "LRU — Least Recently Used",
+          "body": "Evicts the item accessed **longest ago**. Exploits **temporal locality** — the assumption that recently-used data will be used again soon.",
+          "more": "LRU is the industry default for a reason: most real-world access patterns exhibit temporal locality. Session data, query results, and hot API responses all tend to be accessed in bursts. The catch is that LRU requires tracking access order — classically implemented as a **doubly-linked list + hash map** for O(1) operations. At Redis scale, even this is too expensive, so Redis uses **probabilistic LRU**: sample 5 random keys, evict the least-recently-used among them. The approximation is close enough that the overhead saving is worth it."
+        },
+        "LFU": {
+          "title": "LFU — Least Frequently Used",
+          "body": "Evicts the item accessed **fewest total times**. Protects **hot keys** even if they haven't been accessed recently.",
+          "more": "LFU shines when a small number of keys are accessed an enormous number of times — viral content, leaderboard entries, product catalog hot items. A video from 6 months ago with millions of views stays in cache even after a quiet period; LRU would evict it. The challenge is **cache pollution**: if an item was accessed many times early on but has become stale, LFU keeps it indefinitely. Redis handles this with a **decay function** on its frequency counter (Morris counter) so old frequency fades over time."
+        },
+        "FIFO": {
+          "title": "FIFO — First In, First Out",
+          "body": "Evicts the **oldest-inserted** item, ignoring access history entirely. Simple but often suboptimal.",
+          "more": "FIFO treats the cache like a queue: oldest in, first out. It ignores both recency and frequency, which is why it loses to LRU and LFU on most workloads. Its main advantages are simplicity (just a pointer to the queue head) and predictability. FIFO also has a pathological failure mode: **Bélády's anomaly** — for specific access sequences, increasing cache capacity actually *increases* the miss rate. This cannot happen with LRU (a stack algorithm). The anomaly is rare in practice but is the reason OS designers abandoned FIFO for page replacement."
+        },
+        "MRU": {
+          "title": "MRU — Most Recently Used",
+          "body": "Evicts the item accessed **most recently**. Sounds counterintuitive — wins on **sequential scans**.",
+          "more": "When you're streaming through a dataset larger than the cache (A→B→C→D→A→B→C→D with cache size 3), the item you just accessed is the one you'll need *least* soon. Evicting it keeps the upcoming items warm. This is exactly what PostgreSQL does during full table scans: it allocates a small **ring buffer** for scan pages that approximates MRU, preventing the scan from flooding the shared buffer pool and evicting hot OLTP data. MRU is a niche policy — wrong for most workloads, but critically right for sequential scan protection."
+        },
+        "Random": {
+          "title": "Random Replacement",
+          "body": "Evicts a **randomly selected** item. No metadata required. Surprisingly competitive on uniform workloads.",
+          "more": "Random replacement has no access metadata at all — no recency order, no frequency counters. You'd expect this to be terrible, but on workloads where all keys are roughly equally popular, there's no signal to exploit anyway: LRU and LFU can't do much better. Random becomes attractive when metadata tracking is expensive — specifically in **hardware**. ARM Cortex-A processors use pseudo-random replacement for L1/L2 caches because the die area saved by not tracking LRU order in silicon exceeds the hit-rate benefit on real mixed workloads. On software caches, it's rarely the right choice."
+        },
+        "Optimal": {
+          "title": "Bélády's Optimal (Reference Only)",
+          "body": "Evicts the item that will be used **furthest in the future**. Sets the theoretical **hit-rate ceiling**. Cannot be implemented — requires future knowledge.",
+          "more": "László Bélády proved in 1966 that the optimal offline eviction policy is to always remove whichever item will next be needed latest. This is unimplementable in a live system because you'd need to know the future. Its value is as a **benchmark ceiling**: if Optimal achieves 89% and your best real policy achieves 74%, the policy gap is 15 percentage points. If that gap is small, a better policy won't help — you need more cache. If the gap is large, you're leaving hits on the table. Optimal is used extensively in OS research, compiler cache analysis, and hardware design to characterise how far approximations are from ideal."
+        }
+      },
+      "ui": {
+        "scenarioPickerTitle":    "Scenario",
+        "capacityLabel":          "Cache size",
+        "capacityUnit":           "slots",
+        "playButton":             "Play",
+        "pauseButton":            "Pause",
+        "stepForwardButton":      "Step →",
+        "stepBackButton":         "← Step",
+        "resetButton":            "Reset",
+        "hitBadge":               "HIT",
+        "missBadge":              "MISS",
+        "evictedBadge":           "EVICTED",
+        "hitRateLabel":           "Hit rate",
+        "optimalGapLabel":        "Gap to Optimal",
+        "accessTapeLabel":        "Access sequence",
+        "currentAccessLabel":     "Accessing",
+        "usedInLabel":            "Used in",
+        "referenceOnlyLabel":     "Reference only",
+        "lessonTitle":            "Key Insight",
+        "realWorldCalloutLabel":  "In the real world",
+        "themeSwitchToDark":      "Switch to dark theme",
+        "themeSwitchToLight":     "Switch to light theme",
+        "openGuide":              "Open Caching guide",
+        "closeGuide":             "Close Caching guide"
+      },
+      "guide": {
+        "title": "Caching Strategies",
+        "introduction": {
+          "lines": [
+            "A **cache** stores a small amount of fast-access data in front of a larger, slower store. The key question is: when the cache is full and a new item arrives, **which item do you remove**?",
+            "The answer depends entirely on your **access pattern**. The same policy that wins on session data loses badly on streaming data — and vice versa.",
+            "In **system design**, choosing the wrong eviction policy for your workload can destroy cache effectiveness even with plenty of memory. Understanding the tradeoffs is what separates a well-designed cache from one that wastes resources."
+          ],
+          "simulationLine": "Pick a scenario and watch the same access sequence run through five eviction policies at once. Bélády's Optimal shows the theoretical ceiling throughout."
+        },
+        "videoTitle": "Cache eviction policies explained",
+        "videoEmbedUrl": "https://www.youtube.com/embed/BPCC2vwc7c0",
+        "paragraphs": [
+          "**LRU** is the default choice for a reason: most workloads exhibit temporal locality — data you used recently is data you're likely to use again soon. Session caches, query result caches, and CDN edge caches all benefit from LRU. Redis uses it as the default `allkeys-lru` policy. One subtlety: Redis doesn't implement true LRU. It samples 5 random keys and evicts the least-recently-used among them — a probabilistic approximation that's close enough to full LRU that the O(1) overhead saving is worth the tiny hit-rate loss.",
+          "**LFU** solves the problem LRU can't: protecting permanently hot keys from a burst of new arrivals. If key A has been accessed a million times and then a wave of one-off requests floods the cache, LRU will evict A to make room. LFU won't, because A's frequency is overwhelming. Redis added `allkeys-lfu` in version 4.0 specifically for these high-skew workloads. The catch is stale frequency: Redis uses a Morris counter with a decay function so frequency fades over time, preventing indefinite pollution by old hot keys.",
+          "**The most important lesson is the Working Set scenario**: when your cache is large enough to hold your entire working set, every policy achieves near-100% hit rate. When it's smaller than the working set, no policy can save you. Capacity planning matters more than policy choice. Before tuning your eviction algorithm, measure your working set size — a 10% capacity increase often does more than switching from LRU to LFU."
+        ],
+        "referenceLabel": "Reference",
+        "referenceTitle": "Wikipedia: Cache replacement policies",
+        "referenceUrl": "https://en.wikipedia.org/wiki/Cache_replacement_policies"
+      },
+      "discussion": {
+        "buttonLabel": "Open discussion panel",
+        "title": "Discussion"
+      }
+    }
+  }
+}

@@ -298,6 +298,92 @@ function accessKey(key) {
 
 ---
 
+## Simulation Type: `comparison`
+
+Use this for simulations that run multiple algorithms side-by-side on the same input sequence (e.g., Caching Strategies, Sorting Algorithms, Load Balancing policies).
+
+### Key Differences from other types
+
+- No single-algorithm visualization. Instead: N strategy columns rendered simultaneously, all processing the same step.
+- User picks a **scenario** (named preset with a curated access sequence) rather than entering free-form input.
+- A **reference strategy** (`isReference: true` in the spec) is always visible as a greyed benchmark column.
+- Playback is controlled globally (Play/Pause/Step/Reset) — all columns advance together.
+
+### State Shape
+
+```js
+const [scenarioId, setScenarioId]       = useState(spec.scenarios[0].id)
+const [capacity, setCapacity]           = useState(spec.layout.capacitySlider.default)
+const [stepIndex, setStepIndex]         = useState(-1)       // -1 = not started
+const [isPlaying, setIsPlaying]         = useState(false)
+const [strategyStates, setStrategyStates] = useState({})     // { [strategyId]: { slots: [], hits, misses, lastOp } }
+const intervalRef = useRef(null)
+```
+
+### Strategy State per Column
+
+```js
+// Initial state for one strategy column
+{
+  slots: [],              // current cache contents, ordered by eviction priority
+  hits: 0,
+  misses: 0,
+  lastOp: null,           // { type: 'hit'|'miss', key, evictedKey?, reason } — cleared after STEP_MS
+}
+```
+
+### Eviction Logic (implement one function per strategy)
+
+```js
+function evictLRU(slots) { return slots[slots.length - 1] }   // last in access-order list = LRU
+function evictLFU(slots, freq) { return minBy(slots, k => freq[k]) }
+function evictFIFO(slots) { return slots[0] }                  // oldest inserted
+function evictMRU(slots) { return slots[0] }                   // most recently used = head
+function evictRandom(slots) { return slots[Math.floor(Math.random() * slots.length)] }
+function evictOptimal(slots, sequence, currentIndex) {
+  // find slot whose next occurrence in sequence is furthest away
+  return maxBy(slots, k => {
+    const next = sequence.indexOf(k, currentIndex + 1)
+    return next === -1 ? Infinity : next
+  })
+}
+```
+
+### Per-Eviction Tooltip
+
+When a strategy evicts a key, compute the reason string from `spec.simulation.evictionReasonTemplates[strategyId]` by substituting `{key}`, `{stepsAgo}`, `{frequency}`, `{candidateCount}`, `{stepsUntilNext}` as appropriate. Show as a small tooltip anchored to the evicted slot for `evictionHighlightMs` milliseconds.
+
+### Sub-Components (all inline)
+
+```
+ScenarioPicker       — list of named scenario buttons from spec.simulation.scenarios
+CapacitySlider       — range input for cache size, updates all columns simultaneously
+AccessTape           — horizontal strip showing the full access sequence; current step highlighted
+StrategyColumn       — one column per strategy: name, "Used in" badges, cache slots grid, hit rate bar
+CacheSlot            — individual key slot with status highlight (hit/miss/evicted/idle)
+EvictionTooltip      — small tooltip showing why this key was evicted
+HitRateBar           — progress bar with percentage label
+OptimalGapBadge      — shown on non-reference columns: "Gap to Optimal: +15pp"
+LessonCallout        — banner revealed after scenario completes: lesson title + body + real-world callout
+LayerInfoPopup       — ⓘ popup for each strategy (title, body, more)
+LayerExpandModal     — full-screen modal for strategy detail
+```
+
+### Layout
+
+Desktop: Left sidebar (ScenarioPicker + CapacitySlider + playback controls) + main area (AccessTape above, StrategyColumns below). Reference (Optimal) column rendered last with muted/grey styling.
+
+Mobile: Vertical stack — scenario selector → tape → columns (horizontally scrollable).
+
+### Scenario Completion
+
+After the last step plays:
+- Set `isPlaying = false`
+- After `calloutDelayAfterCompleteMs`, reveal `LessonCallout` banner with the scenario's `lessonTitle`, `lessonBody`, and `realWorldCallout`.
+- Show `OptimalGapBadge` on the winning real strategy column.
+
+---
+
 ## `topicText.json` Structure
 
 Always generate a `topicText.json` with at least:

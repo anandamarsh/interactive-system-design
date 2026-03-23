@@ -56,16 +56,23 @@ export const topicList = [
     available: false,
   },
   {
-    id: 'lru-cache',
-    title: 'LRU Cache',
-    shortTitle: 'LRU Cache',
+    id: 'caching-strategies',
+    title: 'Caching Strategies',
+    shortTitle: 'Caching Strategies',
     category: 'Caching',
-    tags: ['Cache', 'Eviction', 'Hit Rate'],
+    tags: ['Cache', 'Eviction', 'LRU', 'LFU', 'Hit Rate'],
     difficulty: 'Beginner',
     description:
-      'Interact with a live LRU cache — watch evictions happen as the cache fills, and see hit rates improve as access patterns warm up.',
+      'Run the same access sequence through five eviction policies simultaneously. Watch hit rates diverge — and see exactly why Redis, PostgreSQL, and ARM CPUs each made a different choice.',
     component: null,
     available: false,
+    concepts: [
+      'Eviction policies decide which item to remove when the cache is full — the choice matters enormously depending on the access pattern',
+      'LRU wins when data exhibits temporal locality; LFU wins when a small set of hot keys dominates access',
+      'MRU wins on sequential scans — evicting what you just read protects the truly hot data underneath',
+      "Bélády's Optimal sets the theoretical ceiling; the gap between Optimal and your best real policy shows how much headroom remains",
+      'Real systems (Redis, PostgreSQL) use approximations — probabilistic LRU, clock sweep — because perfect tracking overhead exceeds the benefit',
+    ],
   },
   {
     id: 'leader-election',
@@ -123,7 +130,7 @@ export const categories = {
     topicIds: ['consistent-hashing', 'leader-election'],
   },
   Caching: {
-    topicIds: ['lru-cache'],
+    topicIds: ['caching-strategies'],
   },
   'Data Structures': {
     topicIds: ['bloom-filter'],
