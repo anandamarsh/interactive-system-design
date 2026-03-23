@@ -1,0 +1,434 @@
+{
+  "_schemaVersion": "1.0.0",
+  "_note": "Reverse-generated from src/topics/rpc/RpcDemo.jsx + rpcText.json. Use with /sim-from-spec or specs/SIMULATION-SKILL.md to regenerate or create similar simulations.",
+
+  "meta": {
+    "id": "rpc",
+    "title": "RPC (Remote Procedure Call)",
+    "shortTitle": "RPC (Remote Procedure Call)",
+    "chapter": "Core Concepts",
+    "category": "Networking",
+    "tags": ["RPC", "Marshalling", "Serialization"],
+    "difficulty": "Beginner",
+    "description": "See exactly how a function call travels across a network — marshalled into bytes, transmitted over the wire, unmarshalled on the server, executed, and returned as a response. All in your browser, no server needed.",
+    "concepts": [
+      "Marshalling converts function name + arguments into a transmittable byte format (JSON, Protobuf, Thrift)",
+      "A stub/proxy makes a remote call look identical to a local function call from the caller's perspective",
+      "The wire protocol defines the byte layout — gRPC uses HTTP/2 + Protobuf; REST uses HTTP + JSON",
+      "Unmarshalling reconstructs the original call on the server, executes it, and marshals the response back",
+      "Real RPC frameworks (gRPC, Thrift, Cap'n Proto) auto-generate stub code from an interface definition"
+    ]
+  },
+
+  "simulation": {
+    "type": "layered-stack",
+
+    "trigger": {
+      "type": "command-input",
+      "placeholder": "ls | pwd | whoami | date | uname -a",
+      "options": {
+        "ls":       ["src", "public", "package.json", "README.md", "vite.config.js"],
+        "pwd":      ["/srv/rpc-demo"],
+        "whoami":   ["rpc-student"],
+        "date":     ["Fri Mar 20 19:07:00 UTC 2026"],
+        "uname -a": ["Linux rpc-node-1 6.8.0-demo #1 SMP x86_64 GNU/Linux"]
+      }
+    },
+
+    "timing": {
+      "stepMs": 1100,
+      "serverProcMs": 2000,
+      "serverProcReceiveBeepMs": 220
+    },
+
+    "layout": {
+      "desktopZoom": 0.86,
+      "mobileBreakpointPx": 768,
+      "localLabel": "Local",
+      "remoteLabel": "Remote",
+      "networkLabel": "Network"
+    },
+
+    "layers": [
+      {
+        "id": "client",
+        "index": 1,
+        "type": "single",
+        "label": "Client",
+        "infoKey": "Client",
+        "side": "local",
+        "description": "The entry point. Accepts user input (a Linux command string) and displays the final output. Represents the caller in the RPC model."
+      },
+      {
+        "id": "clientStub",
+        "index": 2,
+        "type": "split",
+        "label": "Client Stub",
+        "infoKey": "Client Stub",
+        "side": "local",
+        "description": "Generated code that marshals the typed request into a protobuf message and unmarshals the typed response. Hides transport details."
+      },
+      {
+        "id": "rpcRuntimeClient",
+        "index": 3,
+        "type": "split",
+        "label": "RPC Runtime",
+        "infoKey": "RPC Runtime",
+        "side": "local",
+        "description": "Client-side transport machinery. Encodes the protobuf into HTTP/2 HEADERS + DATA frames (outbound) and decodes the HTTP/2 response (inbound)."
+      },
+      {
+        "id": "rpcRuntimeServer",
+        "index": 4,
+        "type": "split",
+        "label": "RPC Runtime",
+        "infoKey": "RPC Runtime",
+        "side": "remote",
+        "description": "Server-side transport machinery. Receives HTTP/2 frames and decodes the request (inbound); encodes the response into HTTP/2 DATA + TRAILERS (outbound)."
+      },
+      {
+        "id": "serverStub",
+        "index": 5,
+        "type": "split",
+        "label": "Server Stub",
+        "infoKey": "Server Stub",
+        "side": "remote",
+        "description": "Generated server glue. Deserializes the protobuf request, dispatches to the service implementation, and serializes the typed response."
+      },
+      {
+        "id": "server",
+        "index": 6,
+        "type": "single",
+        "label": "Server",
+        "infoKey": "Server",
+        "side": "remote",
+        "description": "The actual service implementation. Executes the command and returns the result. Business logic lives here."
+      }
+    ],
+
+    "networkBridgeAfterLayer": 3,
+
+    "steps": [
+      {
+        "active": 1,
+        "reveal": [1],
+        "arrow": null,
+        "note": "Client enters command — box 1 activates, shows typed command"
+      },
+      {
+        "active": 2,
+        "reveal": [1, 2],
+        "arrow": "1-2",
+        "note": "Client Stub marshals request — shows RunCommandRequest protobuf on left side"
+      },
+      {
+        "active": 3,
+        "reveal": [1, 2, 3],
+        "arrow": "2-3",
+        "note": "RPC Runtime encodes HTTP/2 — shows HEADERS + DATA frame on left side"
+      },
+      {
+        "active": "network-forward",
+        "reveal": [1, 2, 3, 4],
+        "arrow": "3-4",
+        "note": "Network transmit (forward) — animated packet crosses network bridge; networkAudio plays"
+      },
+      {
+        "active": 4,
+        "reveal": [1, 2, 3, 4],
+        "arrow": null,
+        "note": "Server RPC Runtime receives — shows same HTTP/2 inbound tokens on left side"
+      },
+      {
+        "active": 5,
+        "reveal": [1, 2, 3, 4, 5],
+        "arrow": "4-5",
+        "note": "Server Stub unmarshals — shows decoded RunCommandRequest + dispatch label on left"
+      },
+      {
+        "active": 6,
+        "reveal": [1, 2, 3, 4, 5, 6],
+        "arrow": "5-6",
+        "note": "Server executes — runs command; typing audio plays; pauseMs=2000 for perceived processing",
+        "pauseMs": 2000
+      },
+      {
+        "active": 5,
+        "reveal": [1, 2, 3, 4, 5, 6],
+        "arrow": "6-5",
+        "note": "Server Stub marshals response — right side shows RunCommandResponse protobuf; boxes 5+6 turn 'received'"
+      },
+      {
+        "active": 4,
+        "reveal": [1, 2, 3, 4, 5, 6],
+        "arrow": "5-4",
+        "note": "Server RPC Runtime encodes response — right side shows HTTP/2 DATA + TRAILERS"
+      },
+      {
+        "active": "network-return",
+        "reveal": [1, 2, 3, 4, 5, 6],
+        "arrow": "4-3",
+        "note": "Network transmit (return) — animated packet crosses back; networkAudio plays"
+      },
+      {
+        "active": 3,
+        "reveal": [1, 2, 3, 4, 5, 6],
+        "arrow": null,
+        "note": "Client RPC Runtime decodes — right side shows HTTP/2 response tokens; boxes 3-6 become 'received'"
+      },
+      {
+        "active": 2,
+        "reveal": [1, 2, 3, 4, 5, 6],
+        "arrow": "3-2",
+        "note": "Client Stub unmarshals response — right side shows RunCommandResponse + 'stdout -> caller' label"
+      },
+      {
+        "active": 1,
+        "reveal": [1, 2, 3, 4, 5, 6],
+        "arrow": "2-1",
+        "note": "Client receives output — box 1 shows command + newline + output lines; all boxes 'received'"
+      }
+    ],
+
+    "wireFormat": {
+      "type": "protobuf+http2",
+      "protocol": "gRPC",
+      "serviceName": "CommandService",
+      "rpcMethod": "RunCommand",
+      "httpMethod": "POST",
+      "httpPath": "/demo.CommandService/RunCommand",
+      "contentType": "application/grpc",
+      "requestMessage": "RunCommandRequest",
+      "responseMessage": "RunCommandResponse",
+      "requestFields":  [{ "name": "command", "type": "string", "fieldNumber": 1 }],
+      "responseFields": [{ "name": "stdout",  "type": "string", "fieldNumber": 1 }],
+      "framingNote": "Each gRPC message has a 1-byte compression flag + 4-byte length prefix before the protobuf bytes",
+      "trailingMetadata": [{ "key": "grpc-status", "value": "0" }]
+    },
+
+    "tokenBuilders": {
+      "_note": "Describes the token arrays ({kind, value}) rendered inside each box at each animation step. Token kinds: command|output|key|string|dim|punct|newline|indent",
+      "layers": {
+        "client": {
+          "boxType": "single",
+          "forward": [
+            { "kind": "command", "value": "<cmd>" }
+          ],
+          "final": [
+            { "kind": "command", "value": "<cmd>" },
+            { "kind": "newline" },
+            { "kind": "output",  "value": "<output-line-1>" },
+            "... additional output lines separated by newline tokens ..."
+          ]
+        },
+        "clientStub": {
+          "boxType": "split",
+          "left": [
+            { "kind": "dim",    "value": "client.runCommand(" },
+            { "kind": "punct",  "value": "{ " },
+            { "kind": "key",    "value": "command" },
+            { "kind": "punct",  "value": ": " },
+            { "kind": "string", "value": "\"<cmd>\"" },
+            { "kind": "punct",  "value": " }" },
+            { "kind": "dim",    "value": ")" },
+            { "kind": "newline" },
+            { "kind": "dim",    "value": "Request Message" },
+            { "kind": "newline" },
+            "...formatMessage('RunCommandRequest', [['command', '\"<cmd>\"']]) ..."
+          ],
+          "right": [
+            { "kind": "dim",    "value": "Response Message" },
+            { "kind": "newline" },
+            "...formatMessage('RunCommandResponse', [['stdout', '\"<output>\"']]) ...",
+            { "kind": "newline" },
+            { "kind": "dim",    "value": "stdout -> caller" }
+          ]
+        },
+        "rpcRuntimeClient": {
+          "boxType": "split",
+          "left": "buildHttp2RequestTokens(cmd) — HTTP/2 HEADERS block + DATA block with RunCommandRequest protobuf bytes",
+          "right": "buildHttp2ResponseTokens(cmd) — DATA block with RunCommandResponse protobuf bytes + TRAILERS block with grpc-status: 0"
+        },
+        "rpcRuntimeServer": {
+          "boxType": "split",
+          "left": "same as rpcRuntimeClient.left (identical HTTP/2 ingress tokens)",
+          "right": "same as rpcRuntimeClient.right (identical HTTP/2 response tokens)"
+        },
+        "serverStub": {
+          "boxType": "split",
+          "left": [
+            { "kind": "dim",    "value": "Decode protobuf request" },
+            { "kind": "newline" },
+            "...formatMessage('RunCommandRequest', [['command', '\"<cmd>\"']]) ...",
+            { "kind": "newline" },
+            { "kind": "dim",    "value": "Request Message -> service" }
+          ],
+          "right": [
+            { "kind": "dim",    "value": "Encode protobuf response" },
+            { "kind": "newline" },
+            "...formatMessage('RunCommandResponse', [['stdout', '\"<output>\"']]) ..."
+          ]
+        },
+        "server": {
+          "boxType": "single",
+          "content": [
+            { "kind": "dim",    "value": "client.RunCommand(request)" },
+            { "kind": "newline" },
+            { "kind": "dim",    "value": "request.command" },
+            { "kind": "punct",  "value": " = " },
+            { "kind": "string", "value": "\"<cmd>\"" },
+            { "kind": "newline" },
+            { "kind": "newline" },
+            { "kind": "dim",    "value": "Response Message" },
+            { "kind": "newline" },
+            "...formatMessage('RunCommandResponse', [['stdout', '\"<output>\"']]) ..."
+          ]
+        }
+      },
+      "protoPanel": {
+        "description": "Separate collapsible panel showing the .proto contract",
+        "content": [
+          "service CommandService { rpc RunCommand(RunCommandRequest) returns (RunCommandResponse); }",
+          "message RunCommandRequest { string command = 1; }",
+          "message RunCommandResponse { string stdout = 1; }"
+        ]
+      },
+      "formatMessageHelper": {
+        "description": "Shared helper that renders a protobuf message shape as tokens",
+        "signature": "formatMessage(name: string, fields: [fieldName, value][]) => Token[]",
+        "output": "<name> {\\n  <field>: <value>\\n}"
+      }
+    },
+
+    "boxStatuses": {
+      "idle":     "Default state — muted border, muted background",
+      "waiting":  "Active in current forward pass — accent border, accent LED blinks",
+      "received": "Step completed — green/highlight tint, steady LED"
+    },
+
+    "audio": {
+      "beep":    "/audio/beep.mp3",
+      "network": "/audio/long_beeps.mp3",
+      "typing":  "/audio/typing.mp3",
+      "notes": "beep plays on each step transition; network plays during network-forward and network-return; typing plays while server is processing (isRemoteProcessing)"
+    },
+
+    "giscusDiscussion": {
+      "repo":            "anandamarsh/interactive-system-design",
+      "repoId":          "R_kgDORr4jBA",
+      "category":        "General",
+      "categoryId":      "DIC_kwDORr4jBM4C471U",
+      "mapping":         "pathname",
+      "strict":          "0",
+      "reactionsEnabled":"1",
+      "emitMetadata":    "0",
+      "inputPosition":   "bottom",
+      "lang":            "en"
+    },
+
+    "content": {
+      "layers": {
+        "Client": {
+          "title": "Client",
+          "body": "The client code calls a generated **gRPC** method as if it were local. It sends a **RunCommandRequest** and eventually receives a **RunCommandResponse**.",
+          "more": "In **gRPC**, the client usually works with a generated **strongly typed API** rather than manually building HTTP requests. For a **unary call** like this one, the client prepares a single **protobuf request**, hands it to the client stub, and then waits for one protobuf response. **Deadlines**, **metadata**, **retries**, and **authentication** concerns are typically attached at this layer or just below it, even though the calling code still looks like a normal method invocation."
+        },
+        "Client Stub": {
+          "title": "Client Stub",
+          "body": "The generated **client stub** accepts a typed request object, starts the **RPC**, and hides **serialization** and transport details from the caller.",
+          "more": "This layer is where the method signature from the **.proto** file becomes usable application code. The stub knows the fully qualified **RPC path**, the request and response **protobuf types**, and how to pass those typed messages into the gRPC library for **marshalling** and **unmarshalling**. In many gRPC implementations this is also where **interceptors** hook in for logging, tracing, auth, or retries before the call reaches the transport runtime."
+        },
+        "RPC Runtime": {
+          "title": "RPC Runtime",
+          "body": "The **gRPC runtime** serializes **protobuf** messages into the gRPC wire format and carries them over **HTTP/2** using **HEADERS**, **DATA**, and **TRAILERS**.",
+          "more": "This is the **transport machinery** that makes gRPC distinct from a generic RPC sketch. A **unary request** is carried as **initial metadata** in HTTP/2 headers plus a gRPC message inside the DATA frame, and the response comes back with its own DATA plus **trailing metadata** such as **grpc-status**. Each gRPC message adds a **1-byte compression flag** and **4-byte length prefix** before the protobuf bytes. **Flow control**, **stream management**, **metadata propagation**, compression flags, and status handling all live conceptually in this layer."
+        },
+        "Server Stub": {
+          "title": "Server Stub",
+          "body": "The generated **server handler** receives the decoded request from the **gRPC runtime**, dispatches to the service method, and returns the typed response for encoding back onto the wire.",
+          "more": "On the server side, generated **glue code** bridges transport and business logic. The runtime reads **HTTP/2**, parses **gRPC framing**, deserializes the protobuf message, and then hands a typed request to the right **RPC handler**. The handler returns a typed response, which the runtime then serializes back onto the wire. **Validation**, **interceptors**, auth checks, and request context propagation often pass through here before the actual service implementation runs."
+        },
+        "Server": {
+          "title": "Server",
+          "body": "This is the real server-side implementation of the **gRPC service**. **Business logic** runs here and produces the response message.",
+          "more": "This layer owns the actual **application behavior**. By the time execution reaches here, transport details such as **HTTP/2 framing** and **protobuf decoding** have already been handled, so the service can focus on using request fields and returning a typed response. In a real system, this is where **domain logic**, database access, downstream service calls, and error mapping to **gRPC status codes** would typically happen."
+        },
+        "Proto Definition": {
+          "title": "Proto Definition",
+          "body": "This is the **.proto contract**. It defines the **gRPC service method** and the **protobuf** request and response message shapes shared by client and server.",
+          "more": "The **.proto file** is the **shared source of truth** for both sides of a gRPC system. From this contract, tooling generates **stubs**, **handlers**, and message classes in different languages, which is why client and server can agree on method names, field numbers, and serialization formats. **Field numbering** matters for wire compatibility, and this contract is what lets teams evolve APIs safely while preserving **backward compatibility**."
+        }
+      },
+      "ui": {
+        "placeholder":          "ls | pwd | whoami | date | uname -a",
+        "network":              "Network",
+        "local":                "Local",
+        "remote":               "Remote",
+        "inbound":              "Inbound",
+        "outbound":             "Outbound",
+        "themeSwitchToDark":    "Switch to dark theme",
+        "themeSwitchToLight":   "Switch to light theme",
+        "openGuide":            "Open gRPC guide",
+        "closeGuide":           "Close gRPC guide",
+        "openLayerInfo":        "Open layer info",
+        "expandLayer":          "Expand layer",
+        "closeLayerInfo":       "Close layer info",
+        "closeExpandedLayer":   "Close expanded layer"
+      },
+      "guide": {
+        "title": "RPC (Remote Procedure Call)",
+        "introduction": {
+          "lines": [
+            "**RPC** is a way one computer (like your local machine) calls another computer (often in the cloud) to run a function as if it were local, usually because the remote system hosts the service or resources.",
+            "In **system design**, **RPC** matters because remote calls introduce **latency**, **failures**, and **costs**, so you must balance local vs remote execution.",
+            "In **agentic computing**, agents use **RPC-style interfaces** to call external **tools**, **APIs**, and **execution environments** instead of doing everything locally."
+          ],
+          "simulationLine": "In this simulation, you can enter a **Linux command** and watch it traverse the **local** and **remote** stack using **gRPC** protocol."
+        },
+        "videoTitle": "gRPC explainer video",
+        "videoEmbedUrl": "https://www.youtube.com/embed/gnchfOojMk4?si=x-QDoKANj3zcLctm",
+        "paragraphs": [
+          "gRPC is an open source, high-performance RPC framework that lets a client call a remote method with a local-looking API. In practice, the contract starts with a **.proto** file, from which tooling generates **client stubs** and **server handlers**. That is why this demo separates the caller, stubs, runtime, and server implementation instead of treating the whole exchange as one generic request.",
+          "The transport is also more specific than a plain JSON API. gRPC commonly uses **HTTP/2** for transport and **Protocol Buffers** for message encoding, which is why the runtime boxes here show **HEADERS**, **DATA**, and **TRAILERS** rather than made-up RPC frames. Unary calls like this one usually send one protobuf request message and receive one protobuf response message, along with a final gRPC status.",
+          "This matters because gRPC is built for real distributed systems concerns such as **streaming**, **flow control**, **authentication**, **deadlines**, and **cancellation**. Even in a simple demo, keeping the protobuf contract, generated stubs, and HTTP/2 transport visible helps explain why gRPC feels different from a basic request-response sketch."
+        ],
+        "referenceLabel": "Reference",
+        "referenceTitle": "Wikipedia: gRPC",
+        "referenceUrl": "https://en.wikipedia.org/wiki/GRPC"
+      },
+      "code": {
+        "requestMessage":         "Request Message",
+        "responseMessage":        "Response Message",
+        "stdoutToCaller":         "stdout -> caller",
+        "runCommandRequest":      "client.RunCommand(request)",
+        "requestCommand":         "request.command",
+        "decodeProtobufRequest":  "Decode protobuf request",
+        "requestMessageToService":"Request Message -> service",
+        "encodeProtobufResponse": "Encode protobuf response",
+        "http2Headers":           "HTTP/2 HEADERS",
+        "method":                 ":method",
+        "post":                   "POST",
+        "path":                   ":path",
+        "runCommandPath":         "\"/demo.CommandService/RunCommand\"",
+        "contentType":            "content-type",
+        "grpcContentType":        "\"application/grpc\"",
+        "data":                   "DATA",
+        "trailers":               "TRAILERS",
+        "grpcStatus":             "grpc-status",
+        "grpcStatusOk":           "0",
+        "requestPayloadHint":     "[gRPC message: 1-byte compression flag + 4-byte length + RunCommandRequest protobuf bytes]",
+        "responsePayloadHint":    "[gRPC message: 1-byte compression flag + 4-byte length + RunCommandResponse protobuf bytes]",
+        "serviceCommandService":  "service CommandService",
+        "rpcSignature":           "rpc RunCommand(RunCommandRequest) returns (RunCommandResponse);",
+        "messageRunCommandRequest":"message RunCommandRequest",
+        "stringCommand":          "string command = 1;",
+        "messageRunCommandResponse":"message RunCommandResponse",
+        "stringStdout":           "string stdout = 1;"
+      },
+      "discussion": {
+        "buttonLabel": "Open discussion panel",
+        "title": "Discussion"
+      }
+    }
+  }
+}

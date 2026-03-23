@@ -1,0 +1,158 @@
+{
+  "_schemaVersion": "1.0.0",
+  "_note": "Hand-drafted spec for the LRU Cache simulation. Uses simulation.type='data-structure' to show the schema generalizes beyond layered-stack (RPC) simulations. Use with /sim-from-spec or specs/SIMULATION-SKILL.md to generate src/topics/lru-cache/LruCacheDemo.jsx.",
+
+  "meta": {
+    "id": "lru-cache",
+    "title": "LRU Cache",
+    "shortTitle": "LRU Cache",
+    "chapter": "Core Concepts",
+    "category": "Caching",
+    "tags": ["Cache", "Eviction", "Hit Rate"],
+    "difficulty": "Beginner",
+    "description": "Interact with a live LRU cache — watch evictions happen as the cache fills, and see hit rates improve as access patterns warm up.",
+    "concepts": [
+      "An LRU (Least Recently Used) cache evicts the item that was accessed least recently when capacity is exceeded",
+      "The doubly-linked list tracks recency: head is most-recently-used (MRU), tail is least-recently-used (LRU)",
+      "A hash map provides O(1) lookup of any node's position in the linked list",
+      "A cache hit moves the node to the head; a cache miss inserts a new node at the head (and may evict the tail)",
+      "Hit rate = hits / (hits + misses); warming up access patterns increases hit rate"
+    ]
+  },
+
+  "simulation": {
+    "type": "data-structure",
+
+    "trigger": {
+      "type": "key-access",
+      "description": "User clicks a key button (or types a key) to simulate cache.get(key) or cache.put(key, value)",
+      "presetKeys": ["A", "B", "C", "D", "E"],
+      "capacity": 4,
+      "operations": {
+        "get": {
+          "label": "get(key)",
+          "note": "If key is in cache (HIT): move to MRU head, return value. If not (MISS): insert at head, evict LRU tail if over capacity."
+        },
+        "reset": {
+          "label": "Reset",
+          "note": "Clear the cache and reset hit/miss counters"
+        }
+      }
+    },
+
+    "timing": {
+      "stepMs": 500,
+      "evictionHighlightMs": 800
+    },
+
+    "layout": {
+      "desktopZoom": 0.9,
+      "mobileBreakpointPx": 768,
+      "panels": ["linked-list", "hash-map", "stats"]
+    },
+
+    "dataStructure": {
+      "primary": "doubly-linked-list",
+      "index": "hash-map",
+      "capacity": 4,
+      "sentinels": {
+        "head": { "id": "head-sentinel", "label": "HEAD (MRU)", "role": "sentinel" },
+        "tail": { "id": "tail-sentinel", "label": "TAIL (LRU)", "role": "sentinel" }
+      },
+      "nodeShape": {
+        "key":   "string",
+        "value": "string",
+        "prev":  "pointer to previous node",
+        "next":  "pointer to next node"
+      }
+    },
+
+    "states": {
+      "idle":      "Default node — muted border, normal background",
+      "hit":       "Cache hit — green accent, briefly pulses",
+      "miss":      "Cache miss / new insert — cyan accent, briefly pulses",
+      "evicted":   "Node being evicted — red accent, fades out",
+      "moved":     "Node being repositioned to head — yellow accent, briefly pulses"
+    },
+
+    "steps": {
+      "onCacheHit": [
+        { "step": 1, "note": "Highlight key in hash map — show pointer to node" },
+        { "step": 2, "note": "Mark node as 'hit' (green) in linked list" },
+        { "step": 3, "note": "Unlink node from current position (update prev.next and next.prev)" },
+        { "step": 4, "note": "Relink node at head (after HEAD sentinel)" },
+        { "step": 5, "note": "Increment hit counter; show updated list order" }
+      ],
+      "onCacheMiss": [
+        { "step": 1, "note": "Highlight hash map — key not found" },
+        { "step": 2, "note": "Create new node, mark as 'miss' (cyan)" },
+        { "step": 3, "note": "Insert node at head (after HEAD sentinel)" },
+        { "step": 4, "note": "Update hash map entry — key → new node" },
+        { "step": 5, "note": "If size > capacity: mark tail node as 'evicted' (red), remove from list and hash map" },
+        { "step": 6, "note": "Increment miss counter; show updated list order" }
+      ]
+    },
+
+    "content": {
+      "layers": {
+        "Linked List": {
+          "title": "Doubly-Linked List",
+          "body": "The **doubly-linked list** tracks access order. The **head** holds the most-recently-used (MRU) item; the **tail** holds the least-recently-used (LRU) item.",
+          "more": "When a key is accessed (hit or miss), its node moves to the head. When the cache is full, the tail node is evicted. Doubly-linking lets every insert, remove, and move happen in **O(1)** time because you can update prev/next pointers directly without scanning the list. The HEAD and TAIL are **sentinel nodes** — they never hold real data and make edge-case pointer manipulation simpler."
+        },
+        "Hash Map": {
+          "title": "Hash Map",
+          "body": "The **hash map** maps each key to its **node** in the linked list, enabling **O(1) lookup** without scanning the list.",
+          "more": "Without the hash map, finding a node in the linked list would cost O(n). With it, every `get` and `put` operation is O(1): look up the key in the hash map to get a direct pointer to the node, then perform the O(1) list operation. This combination — hash map + doubly-linked list — is the classic LRU cache implementation used in production systems and is also the basis for Java's `LinkedHashMap`."
+        },
+        "Stats": {
+          "title": "Cache Stats",
+          "body": "**Hit rate** = hits ÷ (hits + misses). Each **cache hit** increments the hit counter; each **miss** increments the miss counter.",
+          "more": "In real systems, hit rate is the primary cache health metric. A **cold cache** starts at 0% hit rate and warms up as popular keys are accessed repeatedly. The hit rate depends on the **access pattern** (how skewed requests are toward a small working set) and the **cache capacity** relative to the working set size. This simulation lets you observe how different access patterns affect hit rate in real time."
+        }
+      },
+      "ui": {
+        "capacityLabel":     "Capacity",
+        "hitLabel":          "Hits",
+        "missLabel":         "Misses",
+        "hitRateLabel":      "Hit Rate",
+        "mruLabel":          "MRU (Most Recently Used)",
+        "lruLabel":          "LRU (Least Recently Used)",
+        "cacheHitBadge":     "HIT",
+        "cacheMissBadge":    "MISS",
+        "evictedBadge":      "EVICTED",
+        "emptyState":        "Cache is empty — click a key to start",
+        "resetButton":       "Reset",
+        "themeSwitchToDark": "Switch to dark theme",
+        "themeSwitchToLight":"Switch to light theme",
+        "openGuide":         "Open LRU Cache guide",
+        "closeGuide":        "Close LRU Cache guide"
+      },
+      "guide": {
+        "title": "LRU Cache",
+        "introduction": {
+          "lines": [
+            "An **LRU (Least Recently Used) cache** is a fixed-size key-value store that automatically evicts the item accessed **longest ago** when new items need space.",
+            "In **system design**, LRU caches appear everywhere — from CPU L1/L2 caches to CDN edge caches to application-layer caches like Redis. They work well when **access patterns are temporal** (recently accessed data is likely to be accessed again).",
+            "The classic implementation combines a **doubly-linked list** (for O(1) eviction) with a **hash map** (for O(1) lookup), giving every operation constant time."
+          ],
+          "simulationLine": "Click the key buttons to simulate **cache.get(key)** operations. Watch hits, misses, and evictions happen in real time."
+        },
+        "videoTitle": "LRU Cache explained",
+        "videoEmbedUrl": "https://www.youtube.com/embed/7ABFKPK2hD4",
+        "paragraphs": [
+          "The LRU eviction policy is popular because it approximates the **optimal offline eviction policy** (Belady's algorithm) when access patterns are temporal. It's not perfect — it struggles with **one-time sequential scans** that thrash the cache — but it's simple, predictable, and works well for most real-world workloads.",
+          "The doubly-linked list maintains strict access order by physically moving the accessed node to the head on every hit. This is more expensive than just updating a timestamp (O(1) pointer ops vs O(1) integer write), but it keeps eviction O(1) — you always evict the tail, no scanning needed.",
+          "Production caches like **Redis** and **Memcached** use variations of LRU. Redis actually uses a **probabilistic LRU** — instead of maintaining a perfect doubly-linked list across all keys (expensive at scale), it samples a small pool of random keys and evicts the least-recently-used among the sample. This trades a small accuracy loss for dramatically lower memory and CPU overhead."
+        ],
+        "referenceLabel": "Reference",
+        "referenceTitle": "Wikipedia: Cache replacement policies",
+        "referenceUrl": "https://en.wikipedia.org/wiki/Cache_replacement_policies#LRU"
+      },
+      "discussion": {
+        "buttonLabel": "Open discussion panel",
+        "title": "Discussion"
+      }
+    }
+  }
+}
